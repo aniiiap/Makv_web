@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import ServiceCard from '../components/ServiceCard.jsx';
+import api from '../apiClient';
 
 const Services = () => {
   const [services, setServices] = useState(null);
@@ -28,7 +28,7 @@ const Services = () => {
 
   const fetchServices = async () => {
     try {
-      const response = await axios.get('/api/services');
+      const response = await api.get('/services');
       setServices(response.data.data);
       setLoading(false);
     } catch (error) {
