@@ -12,7 +12,7 @@ const Partners = () => {
       image: '/team/Murli.jpeg',
       shortDescription: 'Expert in Global Strategy Advisor, CFO Services, BPO, project financing, and government subsidies.',
       email: 'murli@makvassociates.com',
-      phone: '+91 97853 12345',
+      phone: '+91 99509 87445',
       linkedin: 'https://www.linkedin.com/in/ca-murli-atal-2ba75094/',
       qualifications: [
         'Qualified CA in 2015 (First attempt at all levels)',
@@ -30,7 +30,7 @@ const Partners = () => {
       image: '/team/Ankit Sethiya.png',
       shortDescription: 'Expert in Statutory Audits, GST litigation, Tax Audits, and Company Law compliances.',
       email: 'ankit@makvassociates.com',
-      phone: '+91 97853 12345',
+      phone: '+91 96017 43735',
       linkedin: 'https://linkedin.com/in/ankitsethiya',
       qualifications: [
         'Qualified CA in 2017',
@@ -48,7 +48,7 @@ const Partners = () => {
       image: '/team/Vikas kothari.png',
       shortDescription: 'Expert in financial advisory, project financing, and investment advisory.',
       email: 'vikas@makvassociates.com',
-      phone: '+91 97853 12345',
+      phone: '+91 72084 60096',
       linkedin: 'https://linkedin.com/in/vikaskothari',
       qualifications: [
         'Qualified CA in 2015 (First attempt at all levels)',
