@@ -1,21 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Contact = require('../models/Contact');
 
-// Configure email transporter using environment variables
-// Make sure to set these in Render:
-// SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, CONTACT_TO_EMAIL
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Configure Resend client using API key
+// Make sure to set RESEND_API_KEY and RESEND_FROM_EMAIL in Render
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // @route   POST /api/contact
 // @desc    Submit contact form
@@ -49,43 +40,42 @@ router.post(
 
       // Prepare email details
       const toEmail = process.env.CONTACT_TO_EMAIL || 'webmakv@gmail.com';
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
-      // Email to you (admin)
-      const adminMailOptions = {
-        from: `"MAKV Website" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-        to: toEmail,
-        subject: `New contact form submission from ${name}`,
-        text: `You have received a new contact form submission:\n\n` +
-          `Name: ${name}\n` +
-          `Email: ${email}\n` +
-          `Phone: ${phone}\n` +
-          `Service Interested In: ${service || 'Not specified'}\n\n` +
-          `Message:\n${message}\n`,
-      };
-
-      // Thank-you email to the user
-      const userMailOptions = {
-        from: `"MAKV & Associates" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-        to: email,
-        subject: 'Thank you for contacting M A K V & Associates',
-        text:
-          `Dear ${name},\n\n` +
-          `Thank you for reaching out to M A K V & Associates.\n\n` +
-          `We have received your message and will get back to you as soon as possible.\n\n` +
-          `For your reference, here are the details you submitted:\n` +
-          `Phone: ${phone}\n` +
-          `Service Interested In: ${service || 'Not specified'}\n` +
-          `Message:\n${message}\n\n` +
-          `Best regards,\n` +
-          `M A K V & Associates\n`,
-      };
-
-      // Send emails (don't block response if email fails)
+      // Send emails via Resend (don't block response if email fails)
       try {
-        await transporter.sendMail(adminMailOptions);
-        await transporter.sendMail(userMailOptions);
+        // Email to you (admin)
+        await resend.emails.send({
+          from: `MAKV Website <${fromEmail}>`,
+          to: [toEmail],
+          subject: `New contact form submission from ${name}`,
+          text:
+            `You have received a new contact form submission:\n\n` +
+            `Name: ${name}\n` +
+            `Email: ${email}\n` +
+            `Phone: ${phone}\n` +
+            `Service Interested In: ${service || 'Not specified'}\n\n` +
+            `Message:\n${message}\n`,
+        });
+
+        // Thank-you email to the user
+        await resend.emails.send({
+          from: `M A K V & Associates <${fromEmail}>`,
+          to: [email],
+          subject: 'Thank you for contacting M A K V & Associates',
+          text:
+            `Dear ${name},\n\n` +
+            `Thank you for reaching out to M A K V & Associates.\n\n` +
+            `We have received your message and will get back to you as soon as possible.\n\n` +
+            `For your reference, here are the details you submitted:\n` +
+            `Phone: ${phone}\n` +
+            `Service Interested In: ${service || 'Not specified'}\n` +
+            `Message:\n${message}\n\n` +
+            `Best regards,\n` +
+            `M A K V & Associates\n`,
+        });
       } catch (emailError) {
-        console.error('Error sending contact emails:', emailError);
+        console.error('Error sending contact emails via Resend:', emailError);
         // Do not return an error to the user; just log it
       }
 
