@@ -20,8 +20,8 @@ const QuickServicesSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-white">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 bg-white overflow-x-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -29,10 +29,10 @@ const QuickServicesSection = () => {
           transition={{ duration: 0.8 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-gray-900 px-2 break-words">
             Important <span className="bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">Services</span>
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto px-2 break-words">
             Quick access to our most popular services
           </p>
         </motion.div>
@@ -57,7 +57,7 @@ const QuickServicesSection = () => {
                   <div className="text-3xl mb-2 text-primary-600 flex justify-center">
                     <IconComponent />
                   </div>
-                  <p className="text-sm font-semibold text-gray-800 leading-tight">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight break-words px-1">
                     {service.name}
                   </p>
                 </Link>

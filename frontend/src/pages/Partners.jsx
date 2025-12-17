@@ -82,30 +82,30 @@ const Partners = () => {
   ];
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50">
+    <div className="pt-20 min-h-screen bg-gray-50 overflow-x-hidden max-w-full">
       {/* Hero Section */}
-      <section className="relative text-white py-20 overflow-hidden">
+      <section className="relative text-white py-20 overflow-hidden max-w-full">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
-          <img
-            src="/images/360_F_1131253189_fkD2TvFUZTfleR95SSmpzTRgTLlXFpeP.jpg"
-            alt="Background"
-            className="w-full h-full object-cover object-center scale-110 min-h-full min-w-full"
-          />
+            <img
+              src="/images/360_F_1131253189_fkD2TvFUZTfleR95SSmpzTRgTLlXFpeP.jpg"
+              alt="Background"
+              className="w-full h-full object-cover object-center"
+            />
           {/* Overlay for better text readability */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary-900/50 via-primary-800/40 to-secondary-900/50"></div>
         </div>
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 max-w-full">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 px-2">
               Our Partners
             </h1>
-            <p className="text-xl text-primary-100 max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl text-primary-100 max-w-2xl mx-auto px-2">
               Meet our experienced partners who bring expertise and dedication to every client engagement
             </p>
           </motion.div>
@@ -113,8 +113,8 @@ const Partners = () => {
       </section>
 
       {/* Partners List Section */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-20 bg-white overflow-x-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
           <div className="space-y-12 max-w-5xl mx-auto">
             {teamMembers.map((member, index) => (
               <motion.div
@@ -123,15 +123,15 @@ const Partners = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden"
+                className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden max-w-full"
               >
-                <div className="flex flex-col lg:flex-row">
+                <div className="flex flex-col lg:flex-row max-w-full">
                   {/* Image Section */}
-                  <div className="lg:w-2/5 bg-gradient-to-br from-primary-50 to-secondary-50 flex flex-col items-center justify-center p-8 lg:p-12">
+                  <div className="lg:w-2/5 bg-gradient-to-br from-primary-50 to-secondary-50 flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 w-full">
                     <motion.img
                       src={member.image}
                       alt={member.name}
-                      className="w-48 h-48 rounded-full object-cover shadow-xl border-4 border-white mb-6"
+                      className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full object-cover shadow-xl border-4 border-white mb-6"
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.3 }}
                     />
@@ -181,7 +181,7 @@ const Partners = () => {
                   </div>
 
                   {/* Content Section */}
-                  <div className="lg:w-3/5 p-8 lg:p-12 flex flex-col justify-center bg-white">
+                  <div className="lg:w-3/5 p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-center bg-white w-full">
                     {/* Overview */}
                     <div className="mb-8">
                       <div className="flex items-center gap-3 mb-4">
@@ -191,7 +191,7 @@ const Partners = () => {
                           Overview
                         </h4>
                       </div>
-                      <p className="text-gray-700 leading-relaxed text-base pl-4">
+                      <p className="text-gray-700 leading-relaxed text-sm sm:text-base pl-2 sm:pl-4 break-words">
                         {member.shortDescription}
                       </p>
                     </div>
@@ -211,7 +211,7 @@ const Partners = () => {
                             <div className="mt-1">
                               <FaCheckCircle className="text-primary-600 flex-shrink-0 text-lg group-hover:scale-110 transition-transform duration-200" />
                             </div>
-                            <span className="text-gray-700 leading-relaxed text-base group-hover:text-gray-900 transition-colors">
+                            <span className="text-gray-700 leading-relaxed text-sm sm:text-base group-hover:text-gray-900 transition-colors break-words">
                               {qualification}
                             </span>
                           </div>

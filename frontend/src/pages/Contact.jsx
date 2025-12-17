@@ -71,20 +71,20 @@ const Contact = () => {
   ];
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50">
+    <div className="pt-20 min-h-screen bg-gray-50 overflow-x-hidden max-w-full">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-20 overflow-x-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 px-2">
               Contact Us
             </h1>
-            <p className="text-xl text-primary-100 max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl text-primary-100 max-w-2xl mx-auto px-2">
               Get in touch with us for expert financial and legal services
             </p>
           </motion.div>
@@ -119,7 +119,7 @@ const Contact = () => {
                   <div className="space-y-3 text-gray-600">
                     <p className="flex items-start space-x-2">
                       <FaMapMarkerAlt className="text-primary-600 flex-shrink-0 mt-1" />
-                      <span>{office.address}</span>
+                      <span className="break-words">{office.address}</span>
                     </p>
                     {office.phone && (
                       <p className="flex items-center space-x-2">
@@ -150,7 +150,7 @@ const Contact = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
-              className="bg-white rounded-2xl p-8 shadow-lg"
+              className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg max-w-full overflow-x-hidden"
             >
                 <h2 className="text-3xl font-bold text-gray-900 mb-6">
                   Send us a Message

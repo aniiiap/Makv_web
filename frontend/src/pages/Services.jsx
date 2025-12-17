@@ -50,23 +50,23 @@ const Services = () => {
   }
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50">
+    <div className="pt-20 min-h-screen bg-gray-50 overflow-x-hidden max-w-full">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-20 overflow-x-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 px-2">
               Our Services
             </h1>
-            <p className="text-base md:text-lg text-primary-100 max-w-2xl mx-auto mb-2">
+            <p className="text-sm sm:text-base md:text-lg text-primary-100 max-w-2xl mx-auto mb-2 px-2 break-words">
               When you get right down to it, success is all about value and trust.
             </p>
-            <p className="text-sm md:text-base text-primary-200 max-w-2xl mx-auto">
+            <p className="text-xs sm:text-sm md:text-base text-primary-200 max-w-2xl mx-auto px-2 break-words">
               One Stop Solution for all your business, financial and regulatory requirements
             </p>
           </motion.div>
@@ -74,8 +74,8 @@ const Services = () => {
       </section>
 
       {/* Services Grid */}
-      <section className="py-12">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-12 overflow-x-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
           {services && services[activeCategory] && (
             <>
               <motion.div
@@ -84,10 +84,10 @@ const Services = () => {
                 transition={{ duration: 0.5 }}
                 className="mb-8"
               >
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-3 break-words">
                   {services[activeCategory].title}
                 </h2>
-                <p className="text-base md:text-lg text-gray-600 w-full">
+                <p className="text-sm sm:text-base md:text-lg text-gray-600 w-full break-words">
                   {services[activeCategory].description}
                 </p>
               </motion.div>

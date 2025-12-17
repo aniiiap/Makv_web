@@ -10,13 +10,13 @@ const StatsSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 bg-gradient-to-r from-primary-600 to-secondary-600 text-white overflow-x-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-4xl font-bold mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4 px-2 break-words">
             Our Achievements
           </h2>
-          <p className="text-xl text-primary-100">
+          <p className="text-lg sm:text-xl text-primary-100 px-2 break-words">
             Trusted by thousands of clients across India
           </p>
         </div>
@@ -30,10 +30,10 @@ const StatsSection = () => {
               <div className="text-4xl mb-4 flex justify-center">
                 <stat.icon />
               </div>
-              <div className="text-4xl md:text-4xl font-bold mb-2">
+              <div className="text-3xl sm:text-4xl font-bold mb-2">
                 {stat.number}
               </div>
-              <div className="text-lg text-primary-100">{stat.label}</div>
+              <div className="text-base sm:text-lg text-primary-100 break-words">{stat.label}</div>
             </div>
           ))}
         </div>

@@ -10,7 +10,7 @@ import ClientsSection from '../components/ClientsSection.jsx';
 
 const Home = () => {
   return (
-    <div className="pt-20">
+    <div className="pt-20 overflow-x-hidden max-w-full">
       <Hero />
       <AboutSection />
       <ServicesSection />

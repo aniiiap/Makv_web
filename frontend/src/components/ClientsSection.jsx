@@ -62,8 +62,8 @@ const ClientsSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-white">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 bg-white overflow-x-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -71,10 +71,10 @@ const ClientsSection = () => {
           transition={{ duration: 0.8 }}
           className="text-center mb-12"
         >
-          <h2 className="text-4xl md:text-4xl font-bold mb-4 text-gray-900">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900 px-2 break-words">
             We Serve To
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-base sm:text-lg text-gray-600 px-2 break-words">
             Trusted by leading companies across industries
           </p>
         </motion.div>
@@ -93,7 +93,7 @@ const ClientsSection = () => {
               <img
                 src={client.logo}
                 alt={client.name}
-                className="max-h-16 max-w-full object-contain transition-all duration-300 opacity-80 group-hover:opacity-100"
+                className="max-h-12 sm:max-h-16 max-w-full object-contain transition-all duration-300 opacity-80 group-hover:opacity-100"
                 loading="lazy"
               />
             </motion.div>

@@ -78,8 +78,8 @@ const ServicesSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 bg-gradient-to-b from-gray-50 to-white overflow-x-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -87,13 +87,13 @@ const ServicesSection = () => {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-4xl font-bold mb-4 text-gray-900">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900 px-2 break-words">
             Our <span className="bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">Services</span>
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-2">
+          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto mb-2 px-2 break-words">
             When you get right down to it, success is all about value and trust.
           </p>
-          <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-gray-500 max-w-2xl mx-auto px-2 break-words">
             One Stop Solution for all your business, financial and regulatory requirements
           </p>
         </motion.div>
@@ -113,10 +113,10 @@ const ServicesSection = () => {
                 <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   <category.icon className="text-3xl" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-primary-600 transition-colors">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 group-hover:text-primary-600 transition-colors break-words">
                   {category.title}
                 </h3>
-                <p className="text-gray-600 mb-6 text-sm flex-grow">
+                <p className="text-gray-600 mb-6 text-xs sm:text-sm flex-grow break-words">
                   {category.description}
                 </p>
                 <Link 

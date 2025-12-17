@@ -52,29 +52,30 @@ const Header = () => {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 w-full ${
         isScrolled
           ? 'bg-white shadow-lg py-3'
           : 'bg-white/95 backdrop-blur-sm py-4'
       }`}
     >
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-0 group">
+          <Link to="/" className="flex items-center space-x-0 group min-w-0 flex-shrink">
             <motion.img
               src="/logo/Untitled_design__35_-removebg-preview.png"
               alt="CA M A K V Logo"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="h-16 w-16 md:h-16 md:w-20 object-contain"
+              className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-20 object-contain flex-shrink-0"
             />
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent"
+              className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-[180px] md:max-w-none"
             >
-              M A K V & Associates
+              <span className="hidden sm:inline">M A K V & Associates</span>
+              <span className="sm:hidden">M A K V</span>
             </motion.div>
           </Link>
 
@@ -173,7 +174,7 @@ const Header = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0 ml-2"
             aria-label="Toggle menu"
           >
             <svg
