@@ -61,7 +61,7 @@ const Header = () => {
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-2">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-0 group min-w-0 flex-shrink">
+          <Link to="/" className="flex items-center space-x-2 group min-w-0 flex-shrink">
             <motion.img
               src="/logo/Untitled_design__35_-removebg-preview.png"
               alt="CA M A K V Logo"
@@ -72,10 +72,9 @@ const Header = () => {
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-[180px] md:max-w-none"
+              className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent leading-snug whitespace-normal"
             >
-              <span className="hidden sm:inline">M A K V & Associates</span>
-              <span className="sm:hidden">M A K V</span>
+              M A K V & Associates
             </motion.div>
           </Link>
 
