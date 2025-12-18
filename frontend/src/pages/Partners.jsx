@@ -31,7 +31,7 @@ const Partners = () => {
       shortDescription: 'Expert in Statutory Audits, GST litigation, Tax Audits, and Company Law compliances.',
       email: 'ankit@makvassociates.com',
       phone: '+91 96017 43735',
-      linkedin: 'https://linkedin.com/in/ankitsethiya',
+      linkedin: '',
       qualifications: [
         'Qualified CA in 2017',
         'Articleship with Ambalal Patel & Company, Ahmedabad',
@@ -49,7 +49,7 @@ const Partners = () => {
       shortDescription: 'Expert in financial advisory, project financing, and investment advisory.',
       email: 'vikas@makvassociates.com',
       phone: '+91 72084 60096',
-      linkedin: 'https://linkedin.com/in/vikaskothari',
+      linkedin: '',
       qualifications: [
         'Qualified CA in 2015 (First attempt at all levels)',
         'All India 14th Rank Holder in CS executive',
@@ -68,7 +68,7 @@ const Partners = () => {
       shortDescription: 'Expert in financial advisory, project financing, and investment advisory.',
       email: 'nimit@makvassociates.com',
       phone: '+91 81188 25153',
-      linkedin: 'https://linkedin.com/in/vikaskothari',
+      linkedin: '',
       qualifications: [
         'Qualified CA in 2015 (First attempt at all levels)',
         'All India 14th Rank Holder in CS executive',
