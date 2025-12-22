@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import ServiceCard from '../components/ServiceCard.jsx';
 import api from '../apiClient';
 
-const CACHE_KEY = 'makv_services_data';
+// Bump cache key version to avoid stale cached data without International Taxation
+const CACHE_KEY = 'makv_services_data_v2';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 const Services = () => {
@@ -70,7 +71,18 @@ const Services = () => {
 
   // Memoize the current category services to prevent unnecessary re-renders
   const currentCategoryData = useMemo(() => {
-    return services && services[activeCategory] ? services[activeCategory] : null;
+    if (!services) return null;
+
+    if (services[activeCategory]) {
+      return services[activeCategory];
+    }
+
+    const keys = Object.keys(services);
+    if (keys.length > 0) {
+      return services[keys[0]];
+    }
+
+    return null;
   }, [services, activeCategory]);
 
 
