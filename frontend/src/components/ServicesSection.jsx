@@ -55,11 +55,11 @@ const ServicesSection = () => {
       link: '/services#financial-planning',
     },
     {
-      title: 'Business Process Outsourcing',
-      description: 'Complete outsourcing of accounts payable, receivable, payroll, and cloud-based accounting',
-      icon: FaUsers,
+      title: 'International Taxation',
+      description: 'International tax and transfer pricing services. US work: OYO, Kentucky, California. International work: Melbourne, Perth, Alberta, India.',
+      icon: FaGlobe,
       color: 'from-pink-500 to-pink-600',
-      link: '/services#business-process-outsourcing',
+      link: '/services?category=internationalTaxation',
     },
     {
       title: 'Loan & Project Financing',

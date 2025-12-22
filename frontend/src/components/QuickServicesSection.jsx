@@ -15,8 +15,8 @@ const QuickServicesSection = () => {
     { name: 'Monthly P&L', path: '/services?category=financialPlanning', icon: FaFileAlt },
     { name: 'Tax E-filing', path: '/services?category=directTaxes', icon: FaFileInvoiceDollar },
     { name: 'Company Incorporation', path: '/services?category=otherServices', icon: FaBriefcase },
-    { name: 'Bookkeeping Services', path: '/services?category=businessProcessOutsourcing', icon: FaBriefcase },
-    { name: 'Accounting Outsourcing', path: '/services?category=businessProcessOutsourcing', icon: FaCalculator },
+    { name: 'International Tax', path: '/services?category=internationalTaxation', icon: FaGlobe },
+    { name: 'Transfer Pricing', path: '/services?category=internationalTaxation', icon: FaGlobe },
   ];
 
   return (

@@ -15,7 +15,7 @@ const Footer = () => {
         { name: 'Direct Taxes', path: '/services?category=directTaxes' },
         { name: 'Indirect Taxes', path: '/services?category=indirectTaxes' },
         { name: 'Financial Planning & Analysis', path: '/services?category=financialPlanning' },
-        { name: 'Business Process Outsourcing', path: '/services?category=businessProcessOutsourcing' },
+        { name: 'International Taxation', path: '/services?category=internationalTaxation' },
         { name: 'Loan & Project Financing', path: '/services?category=loanProjectFinancing' },
       ],
     },

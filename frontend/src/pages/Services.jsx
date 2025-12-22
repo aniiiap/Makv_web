@@ -1,20 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import ServiceCard from '../components/ServiceCard.jsx';
 import api from '../apiClient';
 
+const CACHE_KEY = 'makv_services_data';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
 const Services = () => {
-  const [services, setServices] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState(() => {
+    // Try to load from cache first
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return data;
+        }
+      }
+    } catch (e) {
+      // Ignore cache errors
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!services);
   const [searchParams] = useSearchParams();
   const categoryFromUrl = searchParams.get('category') || 'accountingAdvisory';
   const [activeCategory, setActiveCategory] = useState(categoryFromUrl);
 
   useEffect(() => {
-    fetchServices();
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
+    
+    // Only fetch if not cached
+    if (!services) {
+      fetchServices();
+    }
   }, []);
 
   useEffect(() => {
@@ -29,7 +50,17 @@ const Services = () => {
   const fetchServices = async () => {
     try {
       const response = await api.get('/services');
-      setServices(response.data.data);
+      const data = response.data.data;
+      setServices(data);
+      // Cache the data
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        // Ignore localStorage errors
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error fetching services:', error);
@@ -37,17 +68,11 @@ const Services = () => {
     }
   };
 
+  // Memoize the current category services to prevent unnecessary re-renders
+  const currentCategoryData = useMemo(() => {
+    return services && services[activeCategory] ? services[activeCategory] : null;
+  }, [services, activeCategory]);
 
-  if (loading) {
-    return (
-      <div className="pt-20 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading services...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="pt-20 min-h-screen bg-gray-50 overflow-x-hidden max-w-full">
@@ -57,7 +82,7 @@ const Services = () => {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.4 }}
             className="text-center"
           >
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 px-2">
@@ -76,34 +101,41 @@ const Services = () => {
       {/* Services Grid */}
       <section className="py-12 overflow-x-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
-          {services && services[activeCategory] && (
+          {loading && !currentCategoryData ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading services...</p>
+              </div>
+            </div>
+          ) : currentCategoryData ? (
             <>
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.3 }}
                 className="mb-8"
               >
                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-3 break-words">
-                  {services[activeCategory].title}
+                  {currentCategoryData.title}
                 </h2>
                 <p className="text-sm sm:text-base md:text-lg text-gray-600 w-full break-words">
-                  {services[activeCategory].description}
+                  {currentCategoryData.description}
                 </p>
               </motion.div>
               <motion.div
                 key={activeCategory}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {services[activeCategory].services && services[activeCategory].services.map((service, index) => (
+                {currentCategoryData.services && currentCategoryData.services.map((service, index) => (
                   <ServiceCard key={service.id} service={service} index={index} />
                 ))}
               </motion.div>
             </>
-          )}
+          ) : null}
         </div>
       </section>
     </div>

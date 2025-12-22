@@ -237,7 +237,7 @@ const Contact = () => {
                         <option value="Direct Taxes">Direct Taxes</option>
                         <option value="Indirect Taxes">Indirect Taxes</option>
                         <option value="Financial Planning & Analysis">Financial Planning & Analysis</option>
-                        <option value="Business Process Outsourcing">Business Process Outsourcing</option>
+                        <option value="International Taxation">International Taxation</option>
                         <option value="Loan & Project Financing">Loan & Project Financing</option>
                         <option value="Other Services">Other Services</option>
                         <option value="Other">Other</option>

@@ -34,7 +34,7 @@ const Header = () => {
     { key: 'directTaxes', name: 'Direct Taxes', icon: FaFileInvoiceDollar, path: '/services?category=directTaxes' },
     { key: 'indirectTaxes', name: 'Indirect Taxes', icon: FaReceipt, path: '/services?category=indirectTaxes' },
     { key: 'financialPlanning', name: 'Financial Planning', icon: FaChartLine, path: '/services?category=financialPlanning' },
-    { key: 'businessProcessOutsourcing', name: 'BPO', icon: FaUsers, path: '/services?category=businessProcessOutsourcing' },
+    { key: 'internationalTaxation', name: 'International Taxation', icon: FaUsers, path: '/services?category=internationalTaxation' },
     { key: 'loanProjectFinancing', name: 'Loan & Project Financing', icon: FaHandHoldingUsd, path: '/services?category=loanProjectFinancing' },
     { key: 'otherServices', name: 'Other Services', icon: FaBriefcase, path: '/services?category=otherServices' },
   ];
@@ -161,12 +161,12 @@ const Header = () => {
               );
             })}
             <motion.a
-              href="tel:+9196724 09241"
+              href="tel:+919950987445"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="px-4 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors duration-200 shadow-md hover:shadow-lg"
             >
-              +91-96724 09241
+              +91-99509 87445
             </motion.a>
           </div>
 
@@ -280,14 +280,14 @@ const Header = () => {
                 );
               })}
               <motion.a
-                href="tel:+919672409241"
+                href="tel:+919950987445"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: navLinks.length * 0.1 }}
                 className="block px-4 py-2 bg-primary-600 text-white rounded-lg text-center font-medium hover:bg-primary-700 transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                +91-96724 09241
+                +91-99509 87445
               </motion.a>
             </motion.div>
           )}

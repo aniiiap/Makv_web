@@ -93,7 +93,7 @@ const About = () => {
               <p className="text-base sm:text-lg text-gray-700 leading-relaxed mb-6 break-words">
                 Established as a premier firm of Chartered Accountants, M A K V & Associates operates from strategic locations 
                 in Ahmedabad, Mumbai, and Bhilwara. Our organizational structure is built around specialized verticals, each 
-                led by experienced Senior Partners, with a network of associates extending across 10 locations throughout India and Dubai.
+                led by experienced Senior Partners, with a network of associates extending across 10 locations throughout India, Dubai & USA.
               </p>
               <p className="text-base sm:text-lg text-gray-700 leading-relaxed mb-6 break-words">
                 Our foundation rests on a team of experienced partners and dedicated professionals who bring exceptional expertise 
@@ -295,7 +295,7 @@ const About = () => {
                 'Comprehensive one-stop solution for all business needs',
                 'Strong focus on Experience, Expertise and Efficiency',
                 'Business partnering approach to create value',
-                'Presence across 10+ locations in India and Dubai',
+                'Presence across 10+ locations in India, Dubai & USA',
               ].map((point, index) => (
                 <motion.div
                   key={index}
