@@ -3,11 +3,15 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import ScrollToTop from './components/ScrollToTop.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Home from './pages/Home.jsx';
 import Services from './pages/Services.jsx';
 import About from './pages/About.jsx';
 import Contact from './pages/Contact.jsx';
 import Partners from './pages/Partners.jsx';
+import Login from './pages/Login.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+import ClientDashboard from './pages/ClientDashboard.jsx';
 
 function App() {
   return (
@@ -22,6 +26,23 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute requireMaster={true}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client/dashboard"
+              element={
+                <ProtectedRoute requireClient={true}>
+                  <ClientDashboard />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </main>
         <Footer />

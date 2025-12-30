@@ -25,6 +25,8 @@ mongoose.connect(MONGODB_URI, {
 // Routes
 app.use('/api/contact', require('./routes/contact'));
 app.use('/api/services', require('./routes/services'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/clients', require('./routes/clients'));
 
 // Health check
 app.get('/api/health', (req, res) => {

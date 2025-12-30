@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaCalculator, FaShieldAlt, FaFileInvoiceDollar, FaReceipt, FaChartLine, FaUsers, FaHandHoldingUsd, FaBriefcase, FaChevronDown } from 'react-icons/fa';
+import { FaCalculator, FaShieldAlt, FaFileInvoiceDollar, FaReceipt, FaChartLine, FaUsers, FaHandHoldingUsd, FaBriefcase, FaChevronDown, FaSignInAlt, FaUserShield } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isServicesDropdownOpen, setIsServicesDropdownOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const dropdownRef = useRef(null);
+  const { user, logout, isMaster, isClient } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -168,6 +171,45 @@ const Header = () => {
             >
               +91-99509 87445
             </motion.a>
+            
+            {/* Login Buttons */}
+            {!user ? (
+              <>
+                <Link
+                  to="/login?type=master"
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors"
+                >
+                  <FaUserShield className="mr-1" />
+                  Office Login
+                </Link>
+                <Link
+                  to="/login?type=client"
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors"
+                >
+                  <FaSignInAlt className="mr-1" />
+                  Client Login
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to={isMaster ? "/admin/dashboard" : "/client/dashboard"}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  <FaSignInAlt className="mr-1" />
+                  Dashboard
+                </Link>
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate('/');
+                  }}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -289,6 +331,49 @@ const Header = () => {
               >
                 +91-99509 87445
               </motion.a>
+              
+              {/* Mobile Login Buttons */}
+              {!user ? (
+                <>
+                  <Link
+                    to="/login?type=master"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <FaUserShield className="mr-2" />
+                    Office Login
+                  </Link>
+                  <Link
+                    to="/login?type=client"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <FaSignInAlt className="mr-2" />
+                    Client Login
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to={isMaster ? "/admin/dashboard" : "/client/dashboard"}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center px-4 py-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                  >
+                    <FaSignInAlt className="mr-2" />
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                      navigate('/');
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+                  >
+                    Logout
+                  </button>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
