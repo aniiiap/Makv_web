@@ -2,29 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import ServiceCard from '../components/ServiceCard.jsx';
-import api from '../apiClient';
+import { servicesData } from '../data/servicesData.js';
 
-// Bump cache key version to avoid stale cached data without International Taxation
-const CACHE_KEY = 'makv_services_data_v2';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
+// Services data is imported from servicesData.js - loaded instantly at build time
 const Services = () => {
-  const [services, setServices] = useState(() => {
-    // Try to load from cache first
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          return data;
-        }
-      }
-    } catch (e) {
-      // Ignore cache errors
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(!services);
   const [searchParams] = useSearchParams();
   const categoryFromUrl = searchParams.get('category') || 'accountingAdvisory';
   const [activeCategory, setActiveCategory] = useState(categoryFromUrl);
@@ -32,11 +13,6 @@ const Services = () => {
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
-    
-    // Only fetch if not cached
-    if (!services) {
-      fetchServices();
-    }
   }, []);
 
   useEffect(() => {
@@ -48,42 +24,20 @@ const Services = () => {
     }
   }, [searchParams]);
 
-  const fetchServices = async () => {
-    try {
-      const response = await api.get('/services');
-      const data = response.data.data;
-      setServices(data);
-      // Cache the data
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          data,
-          timestamp: Date.now()
-        }));
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      setLoading(false);
-    }
-  };
-
-  // Memoize the current category services to prevent unnecessary re-renders
+  // Get current category data from imported servicesData - instant load (bundled at build time)
   const currentCategoryData = useMemo(() => {
-    if (!services) return null;
-
-    if (services[activeCategory]) {
-      return services[activeCategory];
+    if (servicesData[activeCategory]) {
+      return servicesData[activeCategory];
     }
 
-    const keys = Object.keys(services);
+    // Fallback to first category if activeCategory not found
+    const keys = Object.keys(servicesData);
     if (keys.length > 0) {
-      return services[keys[0]];
+      return servicesData[keys[0]];
     }
 
     return null;
-  }, [services, activeCategory]);
+  }, [activeCategory]);
 
 
   return (
@@ -113,14 +67,7 @@ const Services = () => {
       {/* Services Grid */}
       <section className="py-12 overflow-x-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
-          {loading && !currentCategoryData ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading services...</p>
-              </div>
-            </div>
-          ) : currentCategoryData ? (
+          {currentCategoryData && (
             <>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -147,7 +94,7 @@ const Services = () => {
                 ))}
               </motion.div>
             </>
-          ) : null}
+          )}
         </div>
       </section>
     </div>
