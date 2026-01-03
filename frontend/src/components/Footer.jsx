@@ -57,9 +57,16 @@ const Footer = () => {
             transition={{ duration: 0.5 }}
             className="lg:col-span-4 pr-0 md:pr-4 lg:pr-8"
           >
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent break-words">
-              CA M A K V & Associates
-            </h3>
+            <div className="flex items-center space-x-2 mb-4">
+              <img
+                src="/logo/Untitled_design__35_-removebg-preview.png"
+                alt="CA Logo"
+                className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16 object-contain flex-shrink-0"
+              />
+              <h3 className="text-xl sm:text-2xl font-bold text-white bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent break-words">
+                M A K V & Associates
+              </h3>
+            </div>
             <p className="text-xs sm:text-sm mb-4 break-words">
               Transforming Knowledge into Values
             </p>

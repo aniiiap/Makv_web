@@ -12,8 +12,9 @@ const clientSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: false, // Email is optional
     unique: true,
+    sparse: true, // Allow multiple null/undefined emails (unique only applies to non-empty values)
     lowercase: true,
     trim: true,
   },
@@ -42,6 +43,10 @@ const clientSchema = new mongoose.Schema({
     default: '',
   },
   pan: {
+    type: String,
+    default: '',
+  },
+  aadhar: {
     type: String,
     default: '',
   },
@@ -81,6 +86,22 @@ clientSchema.pre('save', function (next) {
   // Normalize phone to last 10 digits
   if (this.phone) {
     this.phone = this.phone.replace(/[^\d]/g, '').slice(-10);
+  }
+  
+  // Normalize email - completely remove the field if empty (critical for sparse unique index)
+  // For sparse unique indexes, the field must be completely absent, not null or undefined
+  if (this.email !== undefined && this.email !== null) {
+    const emailStr = String(this.email).trim();
+    if (emailStr.length === 0) {
+      // Completely remove email field - use delete and undefined to ensure it's omitted
+      delete this.email;
+      this.set('email', undefined, { strict: false });
+    } else {
+      this.email = emailStr.toLowerCase();
+    }
+  } else {
+    // If email is already undefined/null, ensure it's completely omitted
+    delete this.email;
   }
   
   next();
