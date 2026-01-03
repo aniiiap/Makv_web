@@ -9,11 +9,52 @@ dotenv.config();
 const app = express();
 
 // Middleware
+// CORS configuration - secure for production
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+// Build allowed origins list based on environment
+const allowedOrigins = [];
+
+// In production, only allow production domains
+if (isDevelopment) {
+  // Development: allow localhost
+  allowedOrigins.push(
+    'http://localhost:3000',
+    'http://localhost:5173' // Vite default port
+  );
+} else {
+  // Production: only allow production domains
+  // Get from environment variable (comma-separated for multiple domains)
+  const productionOrigins = process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+    : ['https://www.makv.in', 'https://makv.in'];
+  
+  allowedOrigins.push(...productionOrigins);
+}
+
+// Log allowed origins in development for debugging
+if (isDevelopment) {
+  console.log('CORS allowed origins:', allowedOrigins);
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Log blocked origins for security monitoring
+      console.warn('CORS blocked origin:', origin, '| Allowed:', allowedOrigins);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
