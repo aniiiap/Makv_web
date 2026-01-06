@@ -2,24 +2,28 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaUser, FaLock, FaEnvelope, FaSignInAlt, FaIdCard, FaMobileAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaUser, FaLock, FaEnvelope, FaSignInAlt, FaIdCard, FaMobileAlt, FaEye, FaEyeSlash, FaKey } from 'react-icons/fa';
 
 const Login = () => {
   const [searchParams] = useSearchParams();
   const loginType = searchParams.get('type') || 'master'; // 'master' or 'client'
   const navigate = useNavigate();
-  const { login, clientLogin } = useAuth();
+  const { login, sendOTP, verifyOTP } = useAuth();
 
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     pan: '',
     mobile: '',
+    otp: '',
   });
   const [loading, setLoading] = useState(false);
+  const [sendingOTP, setSendingOTP] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
   const handleChange = (e) => {
     setFormData({
@@ -28,6 +32,78 @@ const Login = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  // Countdown timer for OTP resend
+  React.useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleSendOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    if (!formData.pan || !formData.mobile) {
+      setError('PAN and Mobile number are required');
+      return;
+    }
+
+    if (formData.pan.length !== 10) {
+      setError('PAN must be 10 characters');
+      return;
+    }
+
+    if (formData.mobile.length !== 10) {
+      setError('Mobile number must be 10 digits');
+      return;
+    }
+
+    setSendingOTP(true);
+    try {
+      const result = await sendOTP(formData.pan, formData.mobile);
+      if (result.success) {
+        setOtpSent(true);
+        setSuccess(result.message || 'OTP sent successfully!');
+        setCountdown(60); // 60 seconds countdown
+      } else {
+        setError(result.message || 'Failed to send OTP');
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+    } finally {
+      setSendingOTP(false);
+    }
+  };
+
+  const handleResendOTP = async (e) => {
+    e?.preventDefault();
+    if (countdown > 0) return;
+    setError('');
+    setSuccess('');
+    
+    if (!formData.pan || !formData.mobile) {
+      setError('PAN and Mobile number are required');
+      return;
+    }
+
+    setSendingOTP(true);
+    try {
+      const result = await sendOTP(formData.pan, formData.mobile);
+      if (result.success) {
+        setSuccess(result.message || 'OTP sent successfully!');
+        setCountdown(60); // 60 seconds countdown
+      } else {
+        setError(result.message || 'Failed to send OTP');
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+    } finally {
+      setSendingOTP(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -44,40 +120,51 @@ const Login = () => {
         setLoading(false);
         return;
       }
+
+      try {
+        const result = await login(formData.email, formData.password);
+        if (result.success) {
+          setSuccess('Success! Redirecting...');
+          setTimeout(() => {
+            navigate('/admin/dashboard');
+          }, 500);
+        } else {
+          setError(result.message || 'Login failed');
+        }
+      } catch (err) {
+        setError('An error occurred. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     } else {
-      // Client login validation
-      if (!formData.pan || !formData.mobile) {
-        setError('PAN and Mobile number are required');
+      // Client login - verify OTP
+      if (!formData.otp) {
+        setError('Please enter the OTP');
         setLoading(false);
         return;
       }
-    }
 
-    try {
-      let result;
-      if (loginType === 'master') {
-        result = await login(formData.email, formData.password);
-      } else {
-        result = await clientLogin(formData.pan, formData.mobile);
+      if (formData.otp.length !== 6) {
+        setError('OTP must be 6 digits');
+        setLoading(false);
+        return;
       }
 
-      if (result.success) {
-        setSuccess('Success! Redirecting...');
-        // Redirect based on user role
-        setTimeout(() => {
-          if (loginType === 'master') {
-            navigate('/admin/dashboard');
-          } else {
+      try {
+        const result = await verifyOTP(formData.pan, formData.mobile, formData.otp);
+        if (result.success) {
+          setSuccess('Login successful! Redirecting...');
+          setTimeout(() => {
             navigate('/client/dashboard');
-          }
-        }, 500);
-      } else {
-        setError(result.message || 'Login failed');
+          }, 500);
+        } else {
+          setError(result.message || 'OTP verification failed');
+        }
+      } catch (err) {
+        setError('An error occurred. Please try again.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -210,6 +297,7 @@ const Login = () => {
                     name="mobile"
                     type="tel"
                     required
+                    disabled={otpSent}
                     value={formData.mobile}
                     onChange={(e) => {
                       // Only allow digits
@@ -218,13 +306,75 @@ const Login = () => {
                       setError('');
                       setSuccess('');
                     }}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Enter your mobile number (10 digits)"
                     maxLength={10}
                     pattern="[0-9]{10}"
                   />
                 </div>
               </div>
+
+              {!otpSent ? (
+                <button
+                  type="button"
+                  onClick={handleSendOTP}
+                  disabled={sendingOTP || formData.pan.length !== 10 || formData.mobile.length !== 10}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sendingOTP ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending OTP...
+                    </span>
+                  ) : (
+                    'Send OTP'
+                  )}
+                </button>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
+                      Enter OTP
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaKey className="text-gray-400" />
+                      </div>
+                      <input
+                        id="otp"
+                        name="otp"
+                        type="text"
+                        required
+                        value={formData.otp}
+                        onChange={(e) => {
+                          // Only allow digits, max 6
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 6);
+                          setFormData({ ...formData, otp: value });
+                          setError('');
+                        }}
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-center text-2xl tracking-widest"
+                        placeholder="000000"
+                        maxLength={6}
+                        pattern="[0-9]{6}"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="mt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={handleResendOTP}
+                        disabled={countdown > 0}
+                        className="text-sm text-primary-600 hover:text-primary-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        {countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend OTP'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 

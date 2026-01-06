@@ -1,7 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaCalculator, FaShieldAlt, FaFileInvoiceDollar, FaReceipt, FaChartLine, FaUsers, FaHandHoldingUsd, FaBriefcase, FaChevronDown, FaSignInAlt, FaUserShield } from 'react-icons/fa';
+import {
+  FaCalculator,
+  FaShieldAlt,
+  FaFileInvoiceDollar,
+  FaReceipt,
+  FaChartLine,
+  FaUsers,
+  FaHandHoldingUsd,
+  FaBriefcase,
+  FaChevronDown,
+  FaSignInAlt,
+  FaUserShield,
+  FaPhone,
+} from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
@@ -75,9 +88,9 @@ const Header = () => {
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent leading-snug whitespace-normal"
+              className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent leading-snug whitespace-nowrap"
             >
-              M A K V & Associates
+              M A K V &amp; Associates
             </motion.div>
           </Link>
 
@@ -163,40 +176,28 @@ const Header = () => {
                 </Link>
               );
             })}
-            <motion.a
-              href="tel:+919950987445"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-4 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors duration-200 shadow-md hover:shadow-lg"
-            >
-              +91-99509 87445
-            </motion.a>
-            
-            {/* Login Buttons */}
+            {/* Login / Dashboard Buttons */}
             {!user ? (
               <>
                 <Link
                   to="/login?type=master"
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors"
+                  className="px-4 py-1.5 text-sm font-medium rounded-full border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition-colors"
                 >
-                  <FaUserShield className="mr-1" />
                   Office Login
                 </Link>
                 <Link
                   to="/login?type=client"
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors"
+                  className="px-4 py-1.5 text-sm font-medium rounded-full bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                 >
-                  <FaSignInAlt className="mr-1" />
                   Client Login
                 </Link>
               </>
             ) : (
               <>
                 <Link
-                  to={isMaster ? "/admin/dashboard" : "/client/dashboard"}
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                  to={isMaster ? '/admin/dashboard' : '/client/dashboard'}
+                  className="px-4 py-1.5 text-sm font-medium rounded-full border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition-colors"
                 >
-                  <FaSignInAlt className="mr-1" />
                   Dashboard
                 </Link>
                 <button
@@ -204,12 +205,22 @@ const Header = () => {
                     logout();
                     navigate('/');
                   }}
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                  className="px-4 py-1.5 text-sm font-medium rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                 >
                   Logout
                 </button>
               </>
             )}
+
+            {/* Phone Button - last */}
+            <motion.a
+              href="tel:+919950987445"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="px-4 py-1.5 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition-colors duration-200 shadow-md hover:shadow-lg whitespace-nowrap"
+            >
+              +91-99509 87445
+            </motion.a>
           </div>
 
           {/* Mobile Menu Button */}
@@ -321,34 +332,21 @@ const Header = () => {
                   </motion.div>
                 );
               })}
-              <motion.a
-                href="tel:+919950987445"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: navLinks.length * 0.1 }}
-                className="block px-4 py-2 bg-primary-600 text-white rounded-lg text-center font-medium hover:bg-primary-700 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                +91-99509 87445
-              </motion.a>
-              
-              {/* Mobile Login Buttons */}
+              {/* Mobile Login / Dashboard Buttons (match desktop styling) */}
               {!user ? (
                 <>
                   <Link
                     to="/login?type=master"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="block px-4 py-2 text-center text-sm font-medium rounded-full border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition-colors"
                   >
-                    <FaUserShield className="mr-2" />
                     Office Login
                   </Link>
                   <Link
                     to="/login?type=client"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="block px-4 py-2 text-center text-sm font-medium rounded-full bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                   >
-                    <FaSignInAlt className="mr-2" />
                     Client Login
                   </Link>
                 </>
@@ -357,9 +355,8 @@ const Header = () => {
                   <Link
                     to={isMaster ? "/admin/dashboard" : "/client/dashboard"}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center px-4 py-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                    className="block px-4 py-2 text-center text-sm font-medium rounded-full border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition-colors"
                   >
-                    <FaSignInAlt className="mr-2" />
                     Dashboard
                   </Link>
                   <button
@@ -368,12 +365,24 @@ const Header = () => {
                       setIsMobileMenuOpen(false);
                       navigate('/');
                     }}
-                    className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+                    className="block w-full px-4 py-2 text-center text-sm font-medium rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                   >
                     Logout
                   </button>
                 </>
               )}
+
+              {/* Phone button - last in mobile menu */}
+              <motion.a
+                href="tel:+919950987445"
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: (navLinks.length + 1) * 0.1 }}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block px-4 py-2 text-center rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors mt-1"
+              >
+                +91-99509 87445
+              </motion.a>
             </motion.div>
           )}
         </AnimatePresence>

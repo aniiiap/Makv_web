@@ -75,9 +75,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const clientLogin = async (pan, mobile) => {
+  const sendOTP = async (pan, mobile) => {
     try {
-      const response = await api.post('/auth/client-login', { pan, mobile });
+      const response = await api.post('/auth/client-send-otp', { pan, mobile });
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to send OTP',
+      };
+    }
+  };
+
+  const verifyOTP = async (pan, mobile, otp) => {
+    try {
+      const response = await api.post('/auth/client-verify-otp', { pan, mobile, otp });
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
@@ -88,9 +100,14 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Login failed',
+        message: error.response?.data?.message || 'OTP verification failed',
       };
     }
+  };
+
+  const clientLogin = async (pan, mobile) => {
+    // Deprecated - use sendOTP and verifyOTP instead
+    return await verifyOTP(pan, mobile, '');
   };
 
   const logout = () => {
@@ -105,6 +122,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     clientLogin,
+    sendOTP,
+    verifyOTP,
     logout,
     isMaster: user?.role === 'master',
     isClient: user?.role === 'client',

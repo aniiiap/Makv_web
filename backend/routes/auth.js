@@ -3,8 +3,12 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Client = require('../models/Client');
+const Otp = require('../models/Otp');
 const { auth, JWT_SECRET } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const { Resend } = require('resend');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // @route   POST /api/auth/register
 // @desc    Register a new master/admin user
@@ -133,10 +137,31 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/client-login
-// @desc    Client login using PAN and Mobile number
+// Helper function to send OTP to client's email using Resend
+const sendOtpEmail = async (toEmail, otp, clientName) => {
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+  const subject = 'Your MAKV & Associates Client Portal OTP';
+  const text =
+    `Dear ${clientName || 'Client'},\n\n` +
+    `Your one-time password (OTP) for logging into the MAKV & Associates client portal is: ${otp}\n\n` +
+    `This OTP is valid for 5 minutes and can be used only once.\n` +
+    `If you did not request this, please ignore this email.\n\n` +
+    `Best regards,\n` +
+    `M A K V & Associates\n`;
+
+  await resend.emails.send({
+    from: `M A K V & Associates <${fromEmail}>`,
+    to: [toEmail],
+    subject,
+    text,
+  });
+};
+
+// @route   POST /api/auth/client-send-otp
+// @desc    Send OTP to client's registered email (after validating PAN + Mobile)
 // @access  Public
-router.post('/client-login', [
+router.post('/client-send-otp', [
   body('pan').notEmpty().withMessage('PAN is required'),
   body('mobile').notEmpty().withMessage('Mobile number is required'),
 ], async (req, res) => {
@@ -164,14 +189,125 @@ router.post('/client-login', [
       return res.status(400).json({ success: false, message: 'Invalid mobile number' });
     }
 
-    // Find client by PAN (stored as uppercase) and mobile (exact match on normalized phone)
+    // Find client by PAN and mobile
     const client = await Client.findOne({
       pan: normalizedPan,
-      phone: mobileLast10, // Phone is normalized to last 10 digits in pre-save hook
+      phone: mobileLast10,
     });
 
     if (!client) {
+      // Don't reveal if PAN or mobile is wrong (security best practice)
       return res.status(400).json({ success: false, message: 'Invalid PAN or Mobile number' });
+    }
+
+    if (!client.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No email address found for this client. Please contact the office.',
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Delete any existing OTPs for this mobile+pan combination
+    await Otp.deleteMany({ mobile: mobileLast10, pan: normalizedPan });
+
+    // Save OTP to database (expires in 5 minutes)
+    const otpRecord = new Otp({
+      mobile: mobileLast10,
+      pan: normalizedPan,
+      otp: otp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+    });
+
+    await otpRecord.save();
+
+    // Send OTP via email using Resend
+    try {
+      await sendOtpEmail(client.email, otp, client.name);
+      res.json({
+        success: true,
+        message: 'OTP sent successfully to your registered email address',
+      });
+    } catch (emailError) {
+      console.error('Error sending OTP email:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email. Please try again later.',
+      });
+    }
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @route   POST /api/auth/client-verify-otp
+// @desc    Verify OTP and login client
+// @access  Public
+router.post('/client-verify-otp', [
+  body('pan').notEmpty().withMessage('PAN is required'),
+  body('mobile').notEmpty().withMessage('Mobile number is required'),
+  body('otp').notEmpty().withMessage('OTP is required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { pan, mobile, otp } = req.body;
+
+    // Normalize PAN and mobile
+    const normalizedPan = pan.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+    const normalizedMobile = mobile.replace(/[^\d]/g, '');
+    const mobileLast10 = normalizedMobile.slice(-10);
+
+    if (!normalizedPan || normalizedPan.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Invalid PAN format' });
+    }
+
+    if (!mobileLast10 || mobileLast10.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Invalid mobile number' });
+    }
+
+    // Find OTP record
+    const otpRecord = await Otp.findOne({
+      mobile: mobileLast10,
+      pan: normalizedPan,
+      otp: otp,
+      verified: false,
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    // Check if OTP is expired
+    if (new Date() > otpRecord.expiresAt) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // Check attempts (max 5 attempts)
+    if (otpRecord.attempts >= 5) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({ success: false, message: 'Too many attempts. Please request a new OTP.' });
+    }
+
+    // Mark OTP as verified
+    otpRecord.verified = true;
+    await otpRecord.save();
+
+    // Find client
+    const client = await Client.findOne({
+      pan: normalizedPan,
+      phone: mobileLast10,
+    });
+
+    if (!client) {
+      return res.status(400).json({ success: false, message: 'Client not found' });
     }
 
     // Check if client has a user account (if not, create one automatically)
@@ -180,15 +316,14 @@ router.post('/client-login', [
       user = await User.findById(client.userId);
     }
 
-    // If no user account exists, create one automatically (no password needed for PAN+Mobile auth)
+    // If no user account exists, create one automatically
     if (!user) {
-      // Generate a secure random password (not used for PAN+Mobile auth, but required by User model)
       const crypto = require('crypto');
       const randomPassword = crypto.randomBytes(16).toString('hex');
       
       user = new User({
-        email: client.email || `${normalizedPan.toLowerCase()}@client.makv.com`, // Use PAN-based email if no email
-        password: randomPassword, // Random password (not used for PAN+Mobile auth)
+        email: client.email || `${normalizedPan.toLowerCase()}@client.makv.com`,
+        password: randomPassword,
         name: client.name,
         role: 'client',
       });
@@ -207,6 +342,9 @@ router.post('/client-login', [
       { expiresIn: '7d' }
     );
 
+    // Delete OTP record after successful verification
+    await Otp.deleteOne({ _id: otpRecord._id });
+
     res.json({
       success: true,
       message: 'Login successful',
@@ -219,7 +357,7 @@ router.post('/client-login', [
       },
     });
   } catch (error) {
-    console.error('Client login error:', error);
+    console.error('Verify OTP error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

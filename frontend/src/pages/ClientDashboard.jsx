@@ -352,12 +352,12 @@ const ClientDashboard = () => {
                     key={doc._id}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="text-3xl">{getFileIcon(doc.fileType)}</div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">{doc.originalName}</h3>
-                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="mt-1 text-3xl flex-shrink-0">{getFileIcon(doc.fileType)}</div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 break-words">{doc.originalName}</h3>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
                             <span className="capitalize">{doc.documentType}</span>
                             <span>•</span>
                             <span>{formatFileSize(doc.fileSize)}</span>
@@ -369,17 +369,17 @@ const ClientDashboard = () => {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 sm:flex-col sm:gap-1 sm:items-end">
                         <button
                           onClick={() => handleView(doc)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors w-auto"
                           title="View Document"
                         >
                           <FaEye />
                         </button>
                         <button
                           onClick={() => handleDownload(doc)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors w-auto"
                           title="Download Document"
                         >
                           <FaDownload />
