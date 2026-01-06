@@ -367,12 +367,16 @@ router.get('/', auth, isMaster, async (req, res) => {
       ];
     }
 
+    // Optimize query: select only needed fields and use lean() for faster performance
+    // Removed populate('userId') as it's not used in frontend and adds extra DB query
     const clients = await Client.find(query)
+      .select('name email phone companyName address city state pincode pan aadhar gstin clientId createdAt userId')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate('userId', 'email name');
+      .lean(); // Use lean() for faster queries (returns plain JS objects, not Mongoose documents)
 
+    // Use countDocuments with same query for consistency
     const total = await Client.countDocuments(query);
 
     res.json({

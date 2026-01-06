@@ -124,10 +124,8 @@ const Login = () => {
       try {
         const result = await login(formData.email, formData.password);
         if (result.success) {
-          setSuccess('Success! Redirecting...');
-          setTimeout(() => {
-            navigate('/admin/dashboard');
-          }, 500);
+          // Redirect immediately without delay
+          navigate('/admin/dashboard');
         } else {
           setError(result.message || 'Login failed');
         }
@@ -153,10 +151,8 @@ const Login = () => {
       try {
         const result = await verifyOTP(formData.pan, formData.mobile, formData.otp);
         if (result.success) {
-          setSuccess('Login successful! Redirecting...');
-          setTimeout(() => {
-            navigate('/client/dashboard');
-          }, 500);
+          // Redirect immediately without delay
+          navigate('/client/dashboard');
         } else {
           setError(result.message || 'OTP verification failed');
         }
