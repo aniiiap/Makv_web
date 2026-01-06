@@ -471,12 +471,13 @@ router.post('/', auth, isMaster, async (req, res) => {
       gstin: clientData.gstin || '',
     };
     
-    // Handle email separately - ONLY include if it has a value (for sparse unique index)
-    // DO NOT include email field at all if empty - this is critical for sparse index
+    // Handle email - normalize to lowercase and trim
     if (clientData.email && clientData.email.trim() && clientData.email.trim().length > 0) {
       cleanedData.email = clientData.email.toLowerCase().trim();
+    } else {
+      // If email is empty, don't include it
+      delete cleanedData.email;
     }
-    // If email is empty, don't include it in cleanedData at all
 
     // Normalize PAN and phone
     if (cleanedData.pan) {
@@ -505,9 +506,6 @@ router.post('/', auth, isMaster, async (req, res) => {
     const existingClientId = await Client.findOne({ clientId: cleanedData.clientId });
     if (existingClientId) {
       // For bulk uploads, return success but indicate client was skipped
-      // Check if this is from bulk upload (no userId field means it's a new client creation, not from bulk)
-      // Actually, let's check if we should update or skip
-      // For now, skip existing clients and return success
       return res.status(200).json({
         success: true,
         message: `Client ID ${cleanedData.clientId} already exists - skipped`,
@@ -516,26 +514,7 @@ router.post('/', auth, isMaster, async (req, res) => {
       });
     }
     
-    // If email is provided and not empty, check for email uniqueness
-    if (cleanedData.email && cleanedData.email.trim()) {
-      const existingEmail = await Client.findOne({ email: cleanedData.email });
-      if (existingEmail) {
-        // For bulk uploads, skip if email already exists (same client)
-        // Return success but indicate client was skipped
-        return res.status(200).json({
-          success: true,
-          message: `Email ${cleanedData.email} already exists - skipped`,
-          skipped: true,
-          data: existingEmail,
-        });
-      }
-    }
-
-    // Final cleanup: Remove email if it's empty to prevent sparse index issues
-    // For sparse unique indexes, the field must be completely absent if empty
-    if (!cleanedData.email || cleanedData.email.trim() === '') {
-      delete cleanedData.email;
-    }
+    // Email uniqueness check removed - same email can be used for multiple clients
     
     console.log('Creating client with cleaned data:', JSON.stringify(cleanedData, null, 2));
     
@@ -572,16 +551,10 @@ router.post('/', auth, isMaster, async (req, res) => {
       const field = Object.keys(error.keyPattern || {})[0] || 'field';
       const duplicateValue = error.keyValue ? error.keyValue[field] : 'value';
       
-      // Special handling for email null duplicates (sparse index issue)
-      if (field === 'email' && (duplicateValue === null || duplicateValue === undefined || duplicateValue === 'null')) {
-        console.error('Email sparse index conflict detected. This might indicate existing documents with null emails.');
-        // Try to fix by ensuring email is completely omitted
-        // For now, return a helpful error message
-        return res.status(400).json({
-          success: false,
-          message: 'Email conflict detected. Please provide a unique email or contact admin to fix database index.',
-          error: 'SPARSE_INDEX_CONFLICT'
-        });
+      // Skip email field in duplicate key errors (email is no longer unique)
+      if (field === 'email') {
+        // Email is no longer unique, so this shouldn't happen, but handle gracefully
+        console.warn('Email duplicate key error detected, but email uniqueness is disabled');
       }
       
       return res.status(400).json({
@@ -1011,22 +984,15 @@ router.put('/:id', auth, isMaster, async (req, res) => {
       gstin: clientData.gstin || '',
     };
     
-    // Handle email separately - ONLY include if it has a value (for sparse unique index)
+    // Handle email - normalize to lowercase and trim
     if (clientData.email && clientData.email.trim() && clientData.email.trim().length > 0) {
       cleanedData.email = clientData.email.toLowerCase().trim();
-      
-      // Check for email uniqueness (but allow same email for same client)
-      const existingEmail = await Client.findOne({ email: cleanedData.email });
-      if (existingEmail && existingEmail._id.toString() !== req.params.id) {
-        return res.status(400).json({
-          success: false,
-          message: `Email ${cleanedData.email} already exists for another client`,
-        });
-      }
     } else {
-      // If email is empty, don't include it (for sparse index)
+      // If email is empty, don't include it
       delete cleanedData.email;
     }
+    
+    // Email uniqueness check removed - same email can be used for multiple clients
 
     // Normalize PAN and phone
     if (cleanedData.pan) {
