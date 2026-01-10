@@ -56,7 +56,7 @@ const ServicesSection = () => {
     },
     {
       title: 'International Taxation',
-      description: 'International tax and transfer pricing services. US work: OYO, Kentucky, California. International work: Melbourne, Perth, Alberta, India.',
+      description: 'International tax and transfer pricing services. US work: OYO, Kentucky, California. Australia: Melbourne, Perth, Adelaide. International work: Alberta, India.',
       icon: FaGlobe,
       color: 'from-pink-500 to-pink-600',
       link: '/services?category=internationalTaxation',

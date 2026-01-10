@@ -305,12 +305,12 @@ const services = {
   },
   internationalTaxation: {
     title: 'International Taxation',
-    description: 'International tax and transfer pricing services. US work: OYO, Kentucky, California. International work: Melbourne, Perth, Alberta, India and other key locations.',
+    description: 'International tax and transfer pricing services. US work: OYO, Kentucky, California. Australia: Melbourne, Perth, Adelaide. International work: Alberta, India and other key locations.',
     services: [
       {
         id: 1,
         title: 'Cross-Border Tax Planning',
-        description: 'Strategic cross-border tax planning. US work: OYO, Kentucky, California. International work: Melbourne, Perth, Alberta, India.',
+        description: 'Strategic cross-border tax planning. US work: OYO, Kentucky, California. Australia: Melbourne, Perth, Adelaide. International work: Alberta, India.',
       },
       {
         id: 2,
@@ -325,27 +325,27 @@ const services = {
       {
         id: 4,
         title: 'Location-Specific Tax Compliance',
-        description: 'Tax compliance services for businesses operating in Kentucky, California, Melbourne, Perth, Alberta and other key international locations',
+        description: 'Tax compliance services for businesses operating in US: Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta and other key international locations',
       },
       {
         id: 5,
         title: 'International Tax Structuring',
-        description: 'Designing tax-efficient structures for international operations and investments across Kentucky, California, Melbourne, Perth, Alberta, India and other jurisdictions',
+        description: 'Designing tax-efficient structures for international operations and investments across US: Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta, India and other jurisdictions',
       },
       {
         id: 6,
         title: 'Withholding Tax Management',
-        description: 'Advisory on withholding tax obligations and treaty relief applications for cross-border transactions involving OYO, Kentucky, California, Melbourne, Perth, Alberta and other locations',
+        description: 'Advisory on withholding tax obligations and treaty relief applications for cross-border transactions involving US: OYO, Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta and other locations',
       },
       {
         id: 7,
         title: 'Permanent Establishment (PE) Analysis',
-        description: 'PE risk assessment and mitigation strategies for cross-border operations in Kentucky, California, Melbourne, Perth, Alberta and other locations',
+        description: 'PE risk assessment and mitigation strategies for cross-border operations in US: Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta and other locations',
       },
       {
         id: 8,
         title: 'Foreign Tax Credit Optimization',
-        description: 'Maximizing foreign tax credits and minimizing double taxation across multiple locations including Kentucky, California, Melbourne, Perth, Alberta and beyond',
+        description: 'Maximizing foreign tax credits and minimizing double taxation across multiple locations including US: Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta and beyond',
       },
       {
         id: 9,
@@ -355,7 +355,7 @@ const services = {
       {
         id: 10,
         title: 'Country-by-Country Reporting',
-        description: 'CbCR preparation and filing for multinational enterprises operating across Kentucky, California, Melbourne, Perth, Alberta, India and other countries',
+        description: 'CbCR preparation and filing for multinational enterprises operating across US: Kentucky, California. Australia: Melbourne, Perth, Adelaide. International: Alberta, India and other countries',
       },
       {
         id: 11,
