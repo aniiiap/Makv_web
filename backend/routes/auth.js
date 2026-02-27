@@ -8,7 +8,18 @@ const { auth, JWT_SECRET } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Configure Resend client using API key
+// Make sure to set RESEND_API_KEY and RESEND_FROM_EMAIL in Render
+let resend;
+try {
+  if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  } else {
+    console.warn('RESEND_API_KEY is missing or invalid. Auth emails (OTP) will not be sent.');
+  }
+} catch (error) {
+  console.error('Error initializing Resend in auth.js:', error);
+}
 
 // @route   POST /api/auth/register
 // @desc    Register a new master/admin user
@@ -139,6 +150,10 @@ router.get('/me', auth, async (req, res) => {
 
 // Helper function to send OTP to client's email using Resend
 const sendOtpEmail = async (toEmail, otp, clientName) => {
+  if (!resend) {
+    console.warn('Resend client not initialized. OTP email skipped.');
+    return;
+  }
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
   const subject = 'Your MAKV & Associates Client Portal OTP';
@@ -175,7 +190,7 @@ router.post('/client-send-otp', [
 
     // Normalize PAN (uppercase, remove spaces and special characters)
     const normalizedPan = pan.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
-    
+
     // Normalize mobile (remove spaces, +, -, parentheses, keep only digits)
     const normalizedMobile = mobile.replace(/[^\d]/g, '');
     // Extract last 10 digits (in case country code is included)
@@ -320,7 +335,7 @@ router.post('/client-verify-otp', [
     if (!user) {
       const crypto = require('crypto');
       const randomPassword = crypto.randomBytes(16).toString('hex');
-      
+
       user = new User({
         email: client.email || `${normalizedPan.toLowerCase()}@client.makv.com`,
         password: randomPassword,

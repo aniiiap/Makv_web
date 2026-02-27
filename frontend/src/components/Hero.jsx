@@ -90,6 +90,14 @@ const Hero = () => {
                 Our Services
               </motion.button>
             </Link>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => window.open('/taskflow/login', '_blank')}
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              TaskFlow
+            </motion.button>
           </motion.div>
         </div>
       </div>

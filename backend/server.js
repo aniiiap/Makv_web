@@ -25,10 +25,10 @@ if (isDevelopment) {
 } else {
   // Production: only allow production domains
   // Get from environment variable (comma-separated for multiple domains)
-  const productionOrigins = process.env.FRONTEND_URL 
+  const productionOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
     : ['https://www.makv.in', 'https://makv.in'];
-  
+
   allowedOrigins.push(...productionOrigins);
 }
 
@@ -42,7 +42,7 @@ app.use(cors({
     if (!origin) {
       return callback(null, true);
     }
-    
+
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -66,8 +66,8 @@ mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -79,6 +79,15 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/documents', require('./routes/documents'));
 
+// TaskFlow (Task Manager) Routes - Another dashboard of makv
+app.use('/api/taskflow/auth', require('./routes/taskManager.auth'));
+app.use('/api/taskflow/tasks', require('./routes/taskManager.task.routes'));
+app.use('/api/taskflow/teams', require('./routes/taskManager.team.routes'));
+app.use('/api/taskflow/notifications', require('./routes/taskManager.notification.routes'));
+app.use('/api/taskflow/users', require('./routes/taskManager.user.routes'));
+app.use('/api/taskflow/bills', require('./routes/billRoutes'));
+app.use('/api/taskflow/admin', require('./routes/taskManager.admin.routes'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
@@ -86,7 +95,31 @@ app.get('/api/health', (req, res) => {
 
 const PORT = process.env.PORT || 5004;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Initialize Socket.IO for real-time notifications
+let server;
+try {
+  const http = require('http');
+  const { Server } = require('socket.io');
+  const { initializeSocket } = require('./socket/taskManager.socket');
+
+  server = http.createServer(app);
+  const io = new Server(server, {
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+    },
+  });
+
+  initializeSocket(io);
+  console.log('Socket.IO initialized for TaskFlow');
+
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+} catch (error) {
+  console.warn('Socket.IO initialization failed, running without real-time features:', error.message);
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 

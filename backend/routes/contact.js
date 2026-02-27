@@ -6,7 +6,16 @@ const Contact = require('../models/Contact');
 
 // Configure Resend client using API key
 // Make sure to set RESEND_API_KEY and RESEND_FROM_EMAIL in Render
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend;
+try {
+  if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  } else {
+    console.warn('RESEND_API_KEY is missing or invalid. Contact emails will not be sent.');
+  }
+} catch (error) {
+  console.error('Error initializing Resend:', error);
+}
 
 // @route   POST /api/contact
 // @desc    Submit contact form
@@ -44,6 +53,10 @@ router.post(
 
       // Send emails via Resend (don't block response if email fails)
       try {
+        if (!resend) {
+          throw new Error('Resend client not initialized');
+        }
+
         // Email to you (admin)
         await resend.emails.send({
           from: `MAKV Website <${fromEmail}>`,
