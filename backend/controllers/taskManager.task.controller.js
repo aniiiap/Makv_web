@@ -127,9 +127,10 @@ exports.getTask = async (req, res, next) => {
 
     // Verify user can view task
     if (task.team) {
-      // Team task - verify user is member of team
+      // Team task - verify user is member of team. Since team is populated, use _id
+      const teamId = task.team._id ? task.team._id : task.team;
       const team = await TaskManagerTeam.findOne({
-        _id: task.team,
+        _id: teamId,
         'members.user': req.user.id,
         isActive: true,
       });
@@ -300,8 +301,10 @@ exports.updateTask = async (req, res, next) => {
 
     // Verify user can update task
     if (task.team) {
+      const teamId = task.team._id || task.team; // Handle populated team
+
       const team = await TaskManagerTeam.findOne({
-        _id: task.team,
+        _id: teamId,
         'members.user': req.user.id,
         isActive: true,
       });
@@ -346,7 +349,8 @@ exports.updateTask = async (req, res, next) => {
 
     // Permission Check for Team Tasks
     if (task.team) {
-      const team = await TaskManagerTeam.findById(task.team);
+      const teamId = task.team._id || task.team;
+      const team = await TaskManagerTeam.findById(teamId);
       const member = team.members.find(m => m.user.toString() === req.user.id.toString());
       const userRole = member ? member.role : 'member';
 
@@ -586,8 +590,9 @@ exports.deleteTask = async (req, res, next) => {
 
     // Verify user can delete task
     if (task.team) {
+      const teamId = task.team._id || task.team;
       const team = await TaskManagerTeam.findOne({
-        _id: task.team,
+        _id: teamId,
         'members.user': req.user.id,
         isActive: true,
       });
@@ -652,8 +657,9 @@ exports.addComment = async (req, res, next) => {
 
     // Verify user can comment on task
     if (task.team) {
+      const teamId = task.team._id || task.team;
       const team = await TaskManagerTeam.findOne({
-        _id: task.team,
+        _id: teamId,
         'members.user': req.user.id,
         isActive: true,
       });

@@ -191,7 +191,9 @@ exports.generateInvite = async (req, res, next) => {
     team.inviteTokenExpire = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     await team.save();
 
-    const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/taskflow/teams/join/${inviteToken}`;
+    const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
+    const baseUrl = frontendUrls.length > 0 ? frontendUrls[0] : 'http://localhost:3000';
+    const inviteUrl = `${baseUrl}/taskflow/teams/join/${inviteToken}`;
 
     res.json({
       success: true,
@@ -335,7 +337,9 @@ exports.addMember = async (req, res, next) => {
 
       // Send email to existing user
       try {
-        const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/taskflow/teams`;
+        const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
+        const baseUrl = frontendUrls.length > 0 ? frontendUrls[0] : 'http://localhost:3000';
+        const inviteUrl = `${baseUrl}/taskflow/teams`;
         await sendEmail({
           email: userToAdd.email,
           subject: `You were added to ${team.name}`,
@@ -392,8 +396,10 @@ exports.addMember = async (req, res, next) => {
 
       // Send invitation email with login/register link
       try {
-        const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/taskflow/invite/${inviteToken}`;
-        const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/taskflow/login?invite=${inviteToken}`;
+        const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
+        const baseUrl = frontendUrls.length > 0 ? frontendUrls[0] : 'http://localhost:3000';
+        const inviteUrl = `${baseUrl}/taskflow/invite/${inviteToken}`;
+        const loginUrl = `${baseUrl}/taskflow/login?invite=${inviteToken}`;
         await sendEmail({
           email: email.toLowerCase(),
           subject: `You've been invited to join ${team.name}`,

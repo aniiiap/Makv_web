@@ -7,7 +7,10 @@ const { sendEmail } = require('../utils/taskManager.emailService');
 const { Readable } = require('stream');
 
 const generatePDF = async (billData) => {
-  const browser = await puppeteer.launch({ headless: 'new' });
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  });
   const page = await browser.newPage();
 
   // Create HTML content for the bill - EXACT FORMAT MATCH
