@@ -477,7 +477,7 @@ const Tasks = ({ openCreate = false }) => {
 
       // Permission Check
       const currentTeam = teams.find(t => t._id === newTask.team);
-      const currentUserMember = currentTeam?.members?.find(m => m.user._id === user?.id);
+      const currentUserMember = currentTeam?.members?.find(m => m.user?._id === user?.id);
       const userRole = currentUserMember?.role || 'member';
       const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRole);
       const isPersonalTask = !newTask.team;
@@ -534,7 +534,7 @@ const Tasks = ({ openCreate = false }) => {
       const assigneeData = task.assignedTo;
       let assigneeName = 'Unassigned';
       if (assigneeData) {
-        assigneeName = assigneeData.name || assigneeData.firstName ? `${assigneeData.firstName} ${assigneeData.lastName || ''}`.trim() : 'Unassigned';
+        assigneeName = assigneeData.name || 'Unassigned';
       }
 
       return {
@@ -607,7 +607,7 @@ const Tasks = ({ openCreate = false }) => {
   // Permission Logic Calculation
   const currentTeam = teams.find(t => t._id === newTask.team);
   // Note: user.id might be undefined initially, handle gracefully
-  const currentUserMember = currentTeam?.members?.find(m => m.user._id === user?.id);
+  const currentUserMember = currentTeam?.members?.find(m => m.user?._id === user?.id);
   const userRole = currentUserMember?.role || 'member';
   const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRole);
   const isPersonalTask = !newTask.team;
@@ -690,8 +690,8 @@ const Tasks = ({ openCreate = false }) => {
           <button
             onClick={handleExportExcel}
             className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg transition-all shadow border font-medium flex-1 sm:flex-none justify-center ${isDark
-                ? 'bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700'
-                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              ? 'bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
               }`}
             title="Export to Excel"
           >

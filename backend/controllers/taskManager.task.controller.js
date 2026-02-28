@@ -319,7 +319,7 @@ exports.updateTask = async (req, res, next) => {
       // If reassigning, verify new assignee is team member
       if (req.body.assignedTo && req.body.assignedTo !== task.assignedTo?.toString()) {
         const isMember = team.members.some(
-          (m) => m.user.toString() === req.body.assignedTo.toString()
+          (m) => m.user && m.user.toString() === req.body.assignedTo.toString()
         );
 
         if (!isMember) {
@@ -351,7 +351,7 @@ exports.updateTask = async (req, res, next) => {
     if (task.team) {
       const teamId = task.team._id || task.team;
       const team = await TaskManagerTeam.findById(teamId);
-      const member = team.members.find(m => m.user.toString() === req.user.id.toString());
+      const member = team ? team.members.find(m => m.user && m.user.toString() === req.user.id.toString()) : null;
       const userRole = member ? member.role : 'member';
 
       // If user is just a member (not owner/admin), they CANNOT change:
