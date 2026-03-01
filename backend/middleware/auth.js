@@ -9,13 +9,13 @@ const auth = async (req, res, next) => {
     // Try multiple ways to get the token
     // Express normalizes headers to lowercase, so check 'authorization' first
     let authHeader = req.headers['authorization'] || req.headers['Authorization'] || req.get('authorization') || req.get('Authorization');
-    
+
     let token = null;
     if (authHeader) {
       // Remove 'Bearer ' prefix if present (case insensitive)
       token = authHeader.replace(/^Bearer\s+/i, '').trim();
     }
-    
+
     // Also check for token in query string (fallback)
     if (!token && req.query.token) {
       token = req.query.token;
@@ -37,6 +37,11 @@ const auth = async (req, res, next) => {
       console.log('❌ Auth middleware - User not found for token');
       return res.status(401).json({ success: false, message: 'Token is not valid' });
     }
+
+    // Important: Override the user's base role with the role from the JWT token
+    // This allows a user with role 'user' (e.g. from Google login) to act as a 'client' 
+    // when they log in through the client OTP flow.
+    user.role = decoded.role || user.role;
 
     console.log('✅ Auth successful - User:', user.email, 'Role:', user.role);
     req.user = user;

@@ -27,6 +27,7 @@ const billSchema = new mongoose.Schema(
     termsOfDelivery: String,
 
     buyerDetails: {
+      clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
       name: { type: String, required: true },
       address: { type: String, required: true },
       gstin: { type: String },
@@ -63,6 +64,10 @@ const billSchema = new mongoose.Schema(
     team: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TaskManagerTeam',
+    },
+    taskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TaskManagerTask',
     },
     pdfUrl: {
       type: String,

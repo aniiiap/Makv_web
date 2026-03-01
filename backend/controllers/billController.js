@@ -1,10 +1,15 @@
 const Bill = require('../models/Bill');
 const TaskManagerTeam = require('../models/taskManager.Team');
+const TaskManagerTask = require('../models/taskManager.Task');
+const Client = require('../models/Client');
+const Document = require('../models/Document');
+const User = require('../models/User'); // Required to link the document uploader (the taskflow user's email) 
 const mongoose = require('mongoose');
 const puppeteer = require('puppeteer');
 const cloudinary = require('cloudinary').v2;
 const { sendEmail } = require('../utils/taskManager.emailService');
 const { Readable } = require('stream');
+const logoBase64 = require('../utils/logoBase64');
 
 const generatePDF = async (billData) => {
   const browser = await puppeteer.launch({
@@ -62,19 +67,22 @@ const generatePDF = async (billData) => {
         <!-- Top Section -->
         <table style="border: none;">
           <tr>
-            <td class="half-width" rowspan="3" style="border-bottom: 1px solid #000; vertical-align: top;">
-              <div class="company-name">M A K V & ASSOCIATES</div>
-              <div>Mumbai: Ahmedabad: Bhilwara</div>
-              <div>PAN No. AATFK3007C</div>
-              <div>GSTIN/UIN: 27AATFK3007C1ZI</div>
-              <div>State Name : Maharashtra, Code : 27</div>
-              <div>E-Mail : Atalmurli@yahoo.in</div>
-              <br>
-              <div class="small-label">Buyer (Bill to)</div>
-              <div class="bold">${billData.buyerDetails.name}</div>
-              <div>${billData.buyerDetails.address}</div>
-              <div>GSTIN/UIN : ${billData.buyerDetails.gstin || ''}</div>
-              <div>State Name : ${billData.buyerDetails.stateCode ? 'Maharashtra' : ''}, Code : ${billData.buyerDetails.stateCode || ''}</div>
+            <td class="half-width" rowspan="3" style="border-bottom: 1px solid #000; vertical-align: top; padding-right: 15px;">
+              <table style="border: none; width: 100%;">
+                <tr>
+                  <td style="width: 80px; border: 1px solid #ccc; border-radius: 8px; vertical-align: middle; padding: 4px; text-align: center;">
+                    <img src="${logoBase64}" style="width: 70px; mix-blend-mode: multiply;" />
+                  </td>
+                  <td style="border: none; vertical-align: top; padding-left: 10px;">
+                    <div class="company-name">M A K V & ASSOCIATES</div>
+                    <div>Mumbai: Ahmedabad: Bhilwara</div>
+                    <div>PAN No. AATFK3007C</div>
+                    <div>GSTIN/UIN: 27AATFK3007C1ZI</div>
+                    <div>State Name : Maharashtra, Code : 27</div>
+                    <div>E-Mail : murli.atal@kaassociates.co.in</div>
+                  </td>
+                </tr>
+              </table>
             </td>
             <td class="quarter-width">
               <div class="small-label">Invoice No.</div>
@@ -106,9 +114,13 @@ const generatePDF = async (billData) => {
             </td>
           </tr>
           <tr>
-             <!-- Empty cell below buyer details to match height if needed, OR continue fields -->
-             <td rowspan="4" style="border-right: 1px solid #000; vertical-align: top;">
-                <!-- Just empty space or continued address if long -->
+             <!-- Buyer Details isolated cell matching screenshot -->
+             <td rowspan="4" class="half-width" style="border-right: 1px solid #000; border-bottom: none; vertical-align: top;">
+                <div class="small-label">Buyer (Bill to)</div>
+                <div class="bold" style="font-size: 12px; margin-bottom: 4px;">${billData.buyerDetails.name}</div>
+                <div style="margin-bottom: 4px;">${billData.buyerDetails.address}</div>
+                ${billData.buyerDetails.gstin ? '<div>GSTIN/UIN : ' + billData.buyerDetails.gstin + '</div>' : ''}
+                ${billData.buyerDetails.stateCode ? '<div>State Code : ' + billData.buyerDetails.stateCode + '</div>' : ''}
              </td>
              <td>
               <div class="small-label">Buyer's Order No.</div>
@@ -245,13 +257,34 @@ const generatePDF = async (billData) => {
         <!-- Tax Amount in Words & Footer -->
         <table style="border-top: none;">
            <tr>
-             <td style="border-top: none; vertical-align: top; height: 100px;">
+             <td style="border-top: none; vertical-align: top; height: 120px; padding: 10px;">
                 <div class="small-label">Tax Amount (in words) :</div>
-                <div class="bold" style="margin-top: 5px;">INR ${billData.taxAmountInWords || billData.amountInWords}</div>
+                <div class="bold" style="margin-top: 5px; margin-bottom: 20px;">${billData.taxAmountInWords || billData.amountInWords}</div>
+                
+                <div class="small-label" style="margin-bottom: 4px;">Company's Bank Details</div>
+                <table style="width: auto; border: none; font-size: 11px;">
+                   <tr>
+                      <td style="border: none; padding: 1px 15px 1px 0px;">Bank Name</td>
+                      <td style="border: none; padding: 1px;">:</td>
+                      <td style="border: none; padding: 1px;" class="bold">INDUSLND BANK 1785</td>
+                   </tr>
+                   <tr>
+                      <td style="border: none; padding: 1px 15px 1px 0px;">A/c No.</td>
+                      <td style="border: none; padding: 1px;">:</td>
+                      <td style="border: none; padding: 1px;" class="bold">201002551785</td>
+                   </tr>
+                   <tr>
+                      <td style="border: none; padding: 1px 15px 1px 0px;">Branch & IFS Code</td>
+                      <td style="border: none; padding: 1px;">:</td>
+                      <td style="border: none; padding: 1px;" class="bold">INDB0000133</td>
+                   </tr>
+                </table>
              </td>
-             <td style="border-top: none; width: 40%; vertical-align: bottom;">
-                <div class="text-right bold" style="margin-bottom: 40px;">for M A K V & ASSOCIATES</div>
-                <div class="text-right">Authorised Signatory</div>
+             <td style="border-top: 1px solid #000; border-left: 1px solid #000; width: 40%; vertical-align: bottom; padding: 0;">
+                <div style="height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 4px;">
+                   <div class="text-right bold">for M A K V & ASSOCIATES</div>
+                   <div class="text-right" style="margin-top: 60px;">Authorised Signatory</div>
+                </div>
              </td>
            </tr>
         </table>
@@ -319,6 +352,29 @@ exports.createBill = async (req, res) => {
     billData.generatedBy = req.user._id;
     console.log('User authenticated:', req.user._id);
 
+    // Auto-generate invoiceNo: MAKV/2026-02/00X
+    const currentDate = new Date(billData.date || Date.now());
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const prefix = `MAKV/${year}-${month}/`;
+
+    // Find latest bill in this month
+    const latestBill = await Bill.findOne({
+      invoiceNo: { $regex: `^${prefix}` }
+    }).sort({ invoiceNo: -1 });
+
+    let sequence = 1;
+    if (latestBill && latestBill.invoiceNo) {
+      const parts = latestBill.invoiceNo.split('/');
+      const lastSeq = parseInt(parts[2], 10);
+      if (!isNaN(lastSeq)) {
+        sequence = lastSeq + 1;
+      }
+    }
+    const formattedSequence = String(sequence).padStart(3, '0');
+    billData.invoiceNo = `${prefix}${formattedSequence}`;
+    console.log('Generated Invoice Number:', billData.invoiceNo);
+
     // 1. Generate PDF
     console.log('Step 1: Generating PDF...');
     let pdfBuffer;
@@ -377,6 +433,46 @@ exports.createBill = async (req, res) => {
       // Don't fail the request if email fails, but log it
     }
 
+    // 5. Update Task isBillable if taskId provided
+    if (billData.taskId) {
+      console.log('Step 5: Updating original task status...');
+      try {
+        await TaskManagerTask.findByIdAndUpdate(billData.taskId, { isBillable: true });
+        console.log(`Task ${billData.taskId} marked as billable`);
+      } catch (taskErr) {
+        console.error('Failed to mark task as billable:', taskErr);
+      }
+    }
+
+    // 6. Attach PDF to Office Client Documents
+    if (billData.buyerDetails && billData.buyerDetails.clientId) {
+      console.log('Step 6: Attaching document to client dashboard...');
+      try {
+        // We need an Office User ID (uploadedBy) for the document. 
+        // We'll try to find the office user who matches the Task Manager user's email.
+        const officeUser = await User.findOne({ email: req.user.email });
+        if (officeUser) {
+          const doc = new Document({
+            clientId: billData.buyerDetails.clientId,
+            fileName: `${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
+            originalName: `Invoice-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
+            cloudinaryUrl: billData.pdfUrl,
+            fileType: 'application/pdf',
+            fileSize: pdfBuffer ? pdfBuffer.length : 0,
+            documentType: 'other',
+            uploadedBy: officeUser._id,
+            description: `Generated from Task Manager (Auto-attached)`
+          });
+          await doc.save();
+          console.log(`Document saved to client ${billData.buyerDetails.clientId}`);
+        } else {
+          console.warn(`Could not attach document: No office user found with email ${req.user.email}`);
+        }
+      } catch (clientDocErr) {
+        console.error('Failed to attach document to client dashboard:', clientDocErr);
+      }
+    }
+
     console.log('Bill generation workflow completed successfully.');
     res.status(201).json({ message: 'Bill generated successfully', bill: newBill });
   } catch (error) {
@@ -418,5 +514,24 @@ exports.getBills = async (req, res) => {
   } catch (error) {
     console.error('Error fetching bills:', error);
     res.status(500).json({ message: 'Error fetching bills', error: error.message });
+  }
+};
+
+exports.getClientsForBilling = async (req, res) => {
+  try {
+    // Fetch active clients from the office dashboard
+    // We only need basic details for the dropdown and auto-filling
+    const clients = await Client.find({ status: 'active' })
+      .select('name address email gstin stateCode clientId')
+      .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: clients
+    });
+  } catch (error) {
+    console.error('Error fetching clients for billing:', error);
+    res.status(500).json({ message: 'Error fetching clients', error: error.message });
   }
 };

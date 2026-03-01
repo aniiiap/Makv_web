@@ -25,7 +25,7 @@ const ClientDashboard = () => {
     try {
       // Get client data for logged-in client user
       const response = await api.get('/clients/me');
-      
+
       if (response.data.success && response.data.data) {
         setClientData(response.data.data);
       }
@@ -154,17 +154,17 @@ const ClientDashboard = () => {
       });
 
       // Get the content type from response headers, default to application/pdf
-      const contentType = response.headers['content-type'] || 
-                         response.headers['Content-Type'] || 
-                         'application/pdf';
-      
+      const contentType = response.headers['content-type'] ||
+        response.headers['Content-Type'] ||
+        'application/pdf';
+
       console.log('📄 View response - Content-Type:', contentType);
       console.log('   Blob size:', response.data.size, 'bytes');
 
       // Create blob with correct MIME type so browser can render it
       const blob = new Blob([response.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
-      
+
       // Open in new tab - browser will render PDF correctly with proper MIME type
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (error) {
@@ -222,7 +222,7 @@ const ClientDashboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Client Portal</h1>
-              <p className="text-sm text-gray-600">Welcome, {user?.name}</p>
+              <p className="text-sm text-gray-600">Welcome, {clientData?.name || user?.name}</p>
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@ const ClientDashboard = () => {
             className="bg-white rounded-lg shadow-lg p-6 max-w-3xl mx-auto"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Information</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="flex items-start">
                 <FaUser className="text-primary-600 mt-1 mr-3" />
@@ -334,7 +334,7 @@ const ClientDashboard = () => {
             className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto mt-8"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Documents</h2>
-            
+
             {documentsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>

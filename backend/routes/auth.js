@@ -233,7 +233,7 @@ router.post('/client-send-otp', [
       mobile: mobileLast10,
       pan: normalizedPan,
       otp: otp,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     });
 
     await otpRecord.save();
@@ -296,6 +296,19 @@ router.post('/client-verify-otp', [
     });
 
     if (!otpRecord) {
+      // Log for debugging - check if there's an expired/verified OTP
+      const anyOtp = await Otp.findOne({ mobile: mobileLast10, pan: normalizedPan });
+      if (anyOtp) {
+        console.log('OTP found but not matching:', {
+          verified: anyOtp.verified,
+          expired: new Date() > anyOtp.expiresAt,
+          expiresAt: anyOtp.expiresAt,
+          storedOtp: anyOtp.otp,
+          providedOtp: otp
+        });
+      } else {
+        console.log('No OTP record found at all for:', { mobileLast10, normalizedPan });
+      }
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
     }
 
@@ -331,28 +344,41 @@ router.post('/client-verify-otp', [
       user = await User.findById(client.userId);
     }
 
-    // If no user account exists, create one automatically
+    // If no user account exists, find or create one
     if (!user) {
-      const crypto = require('crypto');
-      const randomPassword = crypto.randomBytes(16).toString('hex');
+      // First try to find an existing user by the client's email
+      if (client.email) {
+        user = await User.findOne({ email: client.email.toLowerCase() });
+      }
 
-      user = new User({
-        email: client.email || `${normalizedPan.toLowerCase()}@client.makv.com`,
-        password: randomPassword,
-        name: client.name,
-        role: 'client',
-      });
+      // If still no user found, create one
+      if (!user) {
+        const crypto = require('crypto');
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const userEmail = client.email || `${normalizedPan.toLowerCase()}@client.makv.com`;
 
-      await user.save();
+        // Double-check no user exists with this email before creating
+        user = await User.findOne({ email: userEmail.toLowerCase() });
+
+        if (!user) {
+          user = new User({
+            email: userEmail,
+            password: randomPassword,
+            name: client.name,
+            role: 'client',
+          });
+          await user.save();
+        }
+      }
 
       // Link client to user
       client.userId = user._id;
       await client.save();
     }
 
-    // Generate JWT token
+    // Generate JWT token - always use 'client' role for client OTP logins
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: 'client' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -368,7 +394,7 @@ router.post('/client-verify-otp', [
         id: user._id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: 'client', // Always 'client' for OTP login
       },
     });
   } catch (error) {

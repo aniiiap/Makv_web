@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiChevronDown, FiChevronUp } from 'react-icons/fi';
@@ -8,15 +8,26 @@ import { toast } from 'react-hot-toast';
 
 const BillGenerator = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const taskId = queryParams.get('taskId') || null;
+
     const { isDark } = useTheme();
     const [loading, setLoading] = useState(false);
     const [teams, setTeams] = useState([]);
+    const [officeClients, setOfficeClients] = useState([]);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
 
+    const getLocalDateString = () => {
+        const offset = new Date().getTimezoneOffset() * 60000;
+        return new Date(Date.now() - offset).toISOString().split('T')[0];
+    };
+
     const [formData, setFormData] = useState({
-        invoiceNo: `INV-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
+        invoiceNo: 'Auto-generated upon save',
+        date: getLocalDateString(),
         team: '', // New field for team association
+        taskId: taskId, // Linking back to task Manager
 
         // Extra Fields
         deliveryNote: '',
@@ -44,20 +55,63 @@ const BillGenerator = () => {
     });
 
     useEffect(() => {
-        const fetchTeams = async () => {
+        const fetchInitialData = async () => {
             try {
-                const response = await api.get('/teams');
-                setTeams(response.data || []);
+                // Fetch Teams
+                const teamsRes = await api.get('/teams');
+                setTeams(teamsRes.data || []);
+
+                // Fetch Office Clients
+                const clientsRes = await api.get('/bills/clients');
+
+                // the api interceptor automatically returns response.data, 
+                // so clientsRes is actually the { success: true, data: [...] } payload.
+                if (clientsRes?.success) {
+                    setOfficeClients(clientsRes.data || []);
+                } else if (Array.isArray(clientsRes)) {
+                    // Fallback just in case the backend returns a direct array in some circumstances
+                    setOfficeClients(clientsRes);
+                }
             } catch (error) {
-                console.error('Error fetching teams:', error);
+                console.error('Error fetching initial data:', error);
             }
         };
-        fetchTeams();
+        fetchInitialData();
     }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleClientSelect = (e) => {
+        const selectedClientId = e.target.value;
+        const client = officeClients.find(c => c._id === selectedClientId);
+
+        if (client) {
+            setFormData(prev => ({
+                ...prev,
+                buyerDetails: {
+                    ...prev.buyerDetails,
+                    clientId: client._id,
+                    name: client.name,
+                    address: client.address || '',
+                    gstin: client.gstin || '',
+                    stateCode: client.stateCode || '06', // Default or fallback
+                },
+                sentToEmail: client.email || prev.sentToEmail
+            }));
+        } else {
+            // Clearing if manually typing a custom client name instead of selecting
+            setFormData(prev => ({
+                ...prev,
+                buyerDetails: {
+                    ...prev.buyerDetails,
+                    clientId: '',
+                    name: selectedClientId
+                }
+            }));
+        }
     };
 
     // ... (rest of handlers)
@@ -81,7 +135,7 @@ const BillGenerator = () => {
 
     const handleItemChange = (index, field, value) => {
         const newItems = [...formData.items];
-        newItems[index][field] = field === 'amount' || field === 'taxRate' ? parseFloat(value) || 0 : value;
+        newItems[index][field] = value;
         setFormData(prev => ({ ...prev, items: newItems }));
     };
 
@@ -100,8 +154,15 @@ const BillGenerator = () => {
     };
 
     const calculateTotal = () => {
-        const subtotal = formData.items.reduce((acc, item) => acc + item.amount, 0);
-        const taxAmount = formData.items.reduce((acc, item) => acc + (item.amount * item.taxRate / 100), 0);
+        const subtotal = formData.items.reduce((acc, item) => {
+            const amt = parseFloat(item.amount) || 0;
+            return acc + amt;
+        }, 0);
+        const taxAmount = formData.items.reduce((acc, item) => {
+            const amt = parseFloat(item.amount) || 0;
+            const rate = parseFloat(item.taxRate) || 0;
+            return acc + (amt * rate / 100);
+        }, 0);
         const total = subtotal + taxAmount;
 
         return {
@@ -131,6 +192,11 @@ const BillGenerator = () => {
             const totals = calculateTotal();
             const payload = {
                 ...formData,
+                items: formData.items.map(item => ({
+                    ...item,
+                    amount: parseFloat(item.amount) || 0,
+                    taxRate: parseFloat(item.taxRate) || 0
+                })),
                 taxDetails: {
                     cgst: totals.cgst,
                     sgst: totals.sgst,
@@ -206,9 +272,9 @@ const BillGenerator = () => {
                                 type="text"
                                 name="invoiceNo"
                                 value={formData.invoiceNo}
-                                onChange={handleChange}
-                                className={inputClass}
-                                required
+                                className={`${inputClass} opacity-70 cursor-not-allowed`}
+                                disabled
+                                title="Invoice number automatically generated sequentially by month"
                             />
                         </div>
                         <div>
@@ -232,16 +298,31 @@ const BillGenerator = () => {
                         </h3>
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
-                                <label className={labelClass}>Buyer Name</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.buyerDetails.name}
-                                    onChange={handleBuyerChange}
-                                    className={inputClass}
-                                    required
-                                    placeholder="Company or Individual Name"
-                                />
+                                <label className={labelClass}>Buyer Name (Select from Office Clients)</label>
+                                <div className="space-y-2">
+                                    <select
+                                        onChange={handleClientSelect}
+                                        value={formData.buyerDetails.clientId || ""}
+                                        className={inputClass}
+                                    >
+                                        <option value="">-- Select an Office Client --</option>
+                                        {officeClients.map(client => (
+                                            <option key={client._id} value={client._id}>
+                                                {client.name} {client.companyName ? `(${client.companyName})` : ''} - {client.clientId}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={formData.buyerDetails.name}
+                                        onChange={handleBuyerChange}
+                                        className={inputClass}
+                                        required
+                                        placeholder="Or type Custom Client Name..."
+                                    />
+                                </div>
                             </div>
                             <div className="md:col-span-2">
                                 <label className={labelClass}>Address</label>
@@ -398,7 +479,7 @@ const BillGenerator = () => {
                                             </td>
                                             <td className="p-2">
                                                 <input
-                                                    type="number"
+                                                    type="text"
                                                     value={item.taxRate}
                                                     onChange={(e) => handleItemChange(index, 'taxRate', e.target.value)}
                                                     className={inputClass}
@@ -406,7 +487,7 @@ const BillGenerator = () => {
                                             </td>
                                             <td className="p-2">
                                                 <input
-                                                    type="number"
+                                                    type="text"
                                                     value={item.amount}
                                                     onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
                                                     className={inputClass}

@@ -12,6 +12,7 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
+import { toast } from 'react-hot-toast';
 
 const Tasks = ({ openCreate = false }) => {
   const [tasks, setTasks] = useState([]);
@@ -466,6 +467,52 @@ const Tasks = ({ openCreate = false }) => {
       setActivities([]);
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to clear activities');
+    }
+  };
+
+  const autoSaveTaskAndRedirectToBill = async (e) => {
+    e.preventDefault();
+    if (isSavingTask) return;
+
+    // Check if the task minimum requirement (title) is met
+    if (!newTask.title.trim()) {
+      toast.error("Please enter at least a Task Title before generating a bill.");
+      return;
+    }
+
+    try {
+      setIsSavingTask(true);
+      const taskData = {
+        ...newTask,
+        team: newTask.team || null,
+        assignedTo: newTask.assignedTo || null,
+        tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
+        isBillable: false // Ensure it's false initially, the backend marks it true upon bill generation
+      };
+
+      const response = await api.post('/tasks', taskData);
+
+      // Close modal and refresh tasks quietly
+      setShowCreateModal(false);
+      setNewTask({
+        title: '',
+        description: '',
+        team: '',
+        assignedTo: '',
+        status: 'todo',
+        priority: 'medium',
+        dueDate: '',
+        tags: '',
+        isBillable: false,
+      });
+      fetchTasks();
+
+      const newTaskId = response.data._id;
+      navigate(`/taskflow/bills/create?taskId=${newTaskId}`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to auto-save task');
+    } finally {
+      setIsSavingTask(false);
     }
   };
 
@@ -1165,7 +1212,27 @@ const Tasks = ({ openCreate = false }) => {
                       <input
                         type="checkbox"
                         checked={newTask.isBillable}
-                        onChange={(e) => setNewTask({ ...newTask, isBillable: e.target.checked })}
+                        onChange={(e) => {
+                          e.preventDefault(); // Intercept default check
+                          if (newTask.isBillable) {
+                            toast.error("Task is already marked as billable. Bills cannot be un-generated here.");
+                            return;
+                          }
+
+                          // Confirmation prompt
+                          if (window.confirm("A bill must be generated to mark this task as billable. Redirect to Bill Generator?")) {
+                            // Check if it's already saved (has _id)
+                            if (editingTask && editingTask._id) {
+                              navigate(`/taskflow/bills/create?taskId=${editingTask._id}`);
+                            } else if (editingTask && typeof editingTask === 'string') {
+                              // Sometimes editingTask is just the ID string in state depending on how the component is built
+                              navigate(`/taskflow/bills/create?taskId=${editingTask}`);
+                            } else {
+                              // It's a new task entirely
+                              autoSaveTaskAndRedirectToBill(e);
+                            }
+                          }
+                        }}
                         className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                       />
                       <span className="text-sm font-medium">Billable Task</span>
