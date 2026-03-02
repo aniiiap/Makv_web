@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
@@ -6,10 +6,10 @@ import { useTheme } from '../context/taskManager.ThemeContext';
 import { useTimer } from '../context/taskManager.TimerContext';
 import KanbanBoard from '../components/taskManager.KanbanBoard';
 import {
-  FiPlus, FiFilter, FiList, FiGrid, FiFolder, FiUser,
+  FiPlus, FiFilter, FiList, FiGrid, FiFolder, FiUser, FiUsers,
   FiCalendar, FiTag, FiEdit2, FiX, FiCheckCircle, FiClock,
-  FiActivity, FiCheckSquare, FiPlay, FiSquare, FiTrash2, FiDollarSign,
-  FiDownload
+  FiActivity, FiCheckSquare, FiPlay, FiPause, FiSquare, FiTrash2, FiDollarSign,
+  FiDownload, FiSearch
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
@@ -25,16 +25,21 @@ const Tasks = ({ openCreate = false }) => {
   const [currentTaskDetails, setCurrentTaskDetails] = useState(null);
   const [activities, setActivities] = useState([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [allUsers, setAllUsers] = useState([]);
+  const [editingClientTask, setEditingClientTask] = useState(null);
 
   // Custom Timer Context
   const {
     activeTask: timerActiveTask,
     isRunning: isTimerRunning,
+    isPaused,
     elapsedTime: timerElapsedTime,
     startTimer,
     stopTimer,
     syncTimer,
-    formatTime
+    formatTime,
+    pauseLocalTimer,
+    resumeLocalTimer
   } = useTimer();
 
   const [manualTimeHours, setManualTimeHours] = useState('');
@@ -48,8 +53,10 @@ const Tasks = ({ openCreate = false }) => {
       team: teamFilter,
       status: '',
       assignedTo: '',
+      priority: '',
     };
   });
+  const [searchText, setSearchText] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useTaskManagerAuth();
   const navigate = useNavigate();
@@ -68,15 +75,16 @@ const Tasks = ({ openCreate = false }) => {
 
   useEffect(() => {
     fetchTeams();
-    // Read URL params for status and assignedTo (but not team - use localStorage)
     const status = searchParams.get('status');
     const assignedTo = searchParams.get('assignedTo');
+    const priority = searchParams.get('priority');
     const teamFilter = localStorage.getItem('teamFilter') || '';
-    if (status || assignedTo) {
+    if (status || assignedTo || priority) {
       setFilters({
-        team: teamFilter, // Use localStorage for team filter
+        team: teamFilter,
         status: status || '',
-        assignedTo: assignedTo || ''
+        assignedTo: assignedTo || '',
+        priority: priority || '',
       });
     } else {
       // Sync team filter from localStorage
@@ -91,6 +99,7 @@ const Tasks = ({ openCreate = false }) => {
 
   useEffect(() => {
     fetchTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   // Listen for filter changes and refresh triggers from notifications or other components
@@ -118,6 +127,8 @@ const Tasks = ({ openCreate = false }) => {
           const params = {};
           if (teamFilter) params.team = teamFilter;
           if (filters.status) params.status = filters.status;
+          if (filters.priority) params.priority = filters.priority;
+          if (filters.searchQuery) params.searchQuery = filters.searchQuery;
           if (filters.assignedTo === 'me') {
             const userData = JSON.parse(localStorage.getItem('user') || '{}');
             if (userData.id) {
@@ -186,6 +197,7 @@ const Tasks = ({ openCreate = false }) => {
       const params = {};
       if (filters.team) params.team = filters.team;
       if (filters.status) params.status = filters.status;
+      if (filters.priority) params.priority = filters.priority;
       if (filters.assignedTo === 'me') {
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         if (userData.id) {
@@ -203,6 +215,16 @@ const Tasks = ({ openCreate = false }) => {
       setLoading(false);
     }
   };
+
+  // Client-side search filtering — does NOT trigger any API calls or re-renders beyond the list
+  const filteredTasks = useMemo(() => {
+    if (!searchText.trim()) return tasks;
+    const query = searchText.toLowerCase();
+    return tasks.filter(task =>
+      (task.title && task.title.toLowerCase().includes(query)) ||
+      (task.description && task.description.toLowerCase().includes(query))
+    );
+  }, [tasks, searchText]);
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -262,6 +284,10 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   const handleEditTask = async (task) => {
+    // Track if this is a client task
+    const clientInfo = task.client || null;
+    setEditingClientTask(clientInfo);
+
     setNewTask({
       title: task.title,
       description: task.description || '',
@@ -276,6 +302,18 @@ const Tasks = ({ openCreate = false }) => {
     setEditingTask(task._id);
     setActiveTab('details');
     setShowCreateModal(true);
+
+    // Fetch all users for client task assignee dropdown
+    if (clientInfo) {
+      try {
+        const res = await api.get('/clients/users');
+        setAllUsers(Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.error('Error fetching users for client task:', err);
+      }
+    } else {
+      setAllUsers([]);
+    }
 
     // Fetch full task details including subtasks and timer info
     try {
@@ -382,6 +420,28 @@ const Tasks = ({ openCreate = false }) => {
       fetchTasks(); // Refresh tasks to show updated time
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to stop timer');
+    }
+  };
+
+  const handlePauseTimer = async () => {
+    if (!editingTask) return;
+    try {
+      const response = await api.post(`/tasks/${editingTask}/timer/pause`);
+      setCurrentTaskDetails(response.data);
+      pauseLocalTimer();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to pause timer');
+    }
+  };
+
+  const handleResumeTimer = async () => {
+    if (!editingTask) return;
+    try {
+      const response = await api.post(`/tasks/${editingTask}/timer/resume`);
+      setCurrentTaskDetails(response.data);
+      resumeLocalTimer();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to resume timer');
     }
   };
 
@@ -660,6 +720,8 @@ const Tasks = ({ openCreate = false }) => {
   const isPersonalTask = !newTask.team;
   const canEditSensitive = !editingTask || isPersonalTask || isTeamAdminOrOwner;
 
+
+
   if (loading && tasks.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -759,11 +821,25 @@ const Tasks = ({ openCreate = false }) => {
 
       {/* Filters */}
       <div className={`rounded-xl shadow-md border p-3 sm:p-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center gap-2 mb-3 sm:mb-4">
-          <FiFilter className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-          <h3 className={`text-sm sm:text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Filters</h3>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <FiFilter className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+            <h3 className={`text-sm sm:text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Filters</h3>
+          </div>
+
+          <div className="w-full md:w-1/3 relative">
+            <FiSearch className={`absolute left-3 top-2.5 h-5 w-5 ${isDark ? 'text-gray-400' : 'text-gray-400'}`} />
+            <input
+              type="text"
+              placeholder="Search tasks by title or description..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 placeholder-gray-500'}`}
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
               Team
@@ -809,6 +885,22 @@ const Tasks = ({ openCreate = false }) => {
           </div>
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Priority
+            </label>
+            <select
+              value={filters.priority}
+              onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+            >
+              <option value="">All Priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
               Assigned To
             </label>
             <select
@@ -828,7 +920,7 @@ const Tasks = ({ openCreate = false }) => {
       {/* Tasks View */}
       {viewMode === 'kanban' ? (
         <KanbanBoard
-          tasks={tasks}
+          tasks={filteredTasks}
           onTaskUpdate={fetchTasks}
           onTaskClick={(task) => handleEditTask(task)}
           onEditTask={handleEditTask}
@@ -837,7 +929,7 @@ const Tasks = ({ openCreate = false }) => {
         />
       ) : (
         /* List View */
-        tasks.length === 0 ? (
+        filteredTasks.length === 0 ? (
           <div className={`rounded-xl shadow-md border p-6 sm:p-12 text-center ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <FiCheckCircle className={`w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
             <p className={`text-base sm:text-lg mb-2 ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>No tasks found</p>
@@ -936,6 +1028,15 @@ const Tasks = ({ openCreate = false }) => {
                           <FiUser className="w-3 h-3" />
                           Personal
                         </span>
+                      )}
+                      {task.client && (
+                        <Link
+                          to={`/taskflow/clients/${task.client._id || task.client}`}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${isDark ? 'bg-teal-900 text-teal-200 hover:bg-teal-800' : 'bg-teal-100 text-teal-700 hover:bg-teal-200'}`}
+                        >
+                          <FiUsers className="w-3 h-3" />
+                          Client: {task.client.name || task.client.companyName || 'Client'}
+                        </Link>
                       )}
                       {task.assignedTo && (
                         <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
@@ -1109,7 +1210,7 @@ const Tasks = ({ openCreate = false }) => {
                       disabled={!canEditSensitive}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} disabled:cursor-not-allowed`}
                     >
-                      <option value="">Personal Task</option>
+                      <option value="">{editingClientTask ? `Client: ${editingClientTask.name || editingClientTask.companyName || 'Client Task'}` : 'Personal Task'}</option>
                       {teams.map((team) => (
                         <option key={team._id} value={team._id}>
                           {team.name}
@@ -1135,6 +1236,12 @@ const Tasks = ({ openCreate = false }) => {
                         getTeamMembers(newTask.team).map((member) => (
                           <option key={member.user._id} value={member.user._id}>
                             {member.user.name}
+                          </option>
+                        ))
+                      ) : editingClientTask && allUsers.length > 0 ? (
+                        allUsers.map((u) => (
+                          <option key={u._id} value={u._id}>
+                            {u.name}
                           </option>
                         ))
                       ) : (
@@ -1367,21 +1474,40 @@ const Tasks = ({ openCreate = false }) => {
 
                 {/* Timer controls */}
                 <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  {isTimerRunning && timerActiveTask && timerActiveTask._id.toString() === editingTask.toString() ? (
+                  {(isTimerRunning || isPaused) && timerActiveTask && timerActiveTask._id.toString() === editingTask.toString() ? (
                     <div className="space-y-4">
                       <div className="text-center">
                         <div className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                           {formatTime(timerElapsedTime)}
                         </div>
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Timer running...</p>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{isPaused ? 'Timer paused' : 'Timer running...'}</p>
                       </div>
-                      <button
-                        onClick={handleStopTimer}
-                        className="w-auto px-2.5 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 mx-auto"
-                      >
-                        <FiSquare className="w-3.5 h-3.5" />
-                        Stop Timer
-                      </button>
+                      <div className="flex items-center justify-center gap-3">
+                        {isPaused ? (
+                          <button
+                            onClick={handleResumeTimer}
+                            className="w-auto px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                          >
+                            <FiPlay className="w-3.5 h-3.5" />
+                            Resume
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handlePauseTimer}
+                            className="w-auto px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                          >
+                            <FiPause className="w-3.5 h-3.5" />
+                            Pause
+                          </button>
+                        )}
+                        <button
+                          onClick={handleStopTimer}
+                          className="w-auto px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                        >
+                          <FiSquare className="w-3.5 h-3.5" />
+                          Stop
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button

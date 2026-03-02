@@ -488,27 +488,10 @@ exports.createBill = async (req, res) => {
 
 exports.getBills = async (req, res) => {
   try {
-    const userId = req.user._id;
-
-    // 1. Find teams where user is a member
-    const userTeams = await TaskManagerTeam.find({
-      'members.user': userId,
-      isActive: true
-    }).select('_id');
-
-    const teamIds = userTeams.map(t => t._id);
-
-    // 2. Find bills that are EITHER:
-    //    a) Created by the user (Personal or legacy)
-    //    b) Associated with a team the user belongs to
-    const bills = await Bill.find({
-      $or: [
-        { generatedBy: userId },
-        { team: { $in: teamIds } }
-      ]
-    })
+    // All bills visible to all authenticated members
+    const bills = await Bill.find()
       .sort({ createdAt: -1 })
-      .populate('team', 'name'); // Optional: populate team name if we want to show it
+      .populate('team', 'name');
 
     res.status(200).json(bills);
   } catch (error) {

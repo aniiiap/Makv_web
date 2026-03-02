@@ -15,6 +15,7 @@ export const TimerProvider = ({ children }) => {
     // Timer state
     const [activeTask, setActiveTask] = useState(null); // The task object being timed
     const [isRunning, setIsRunning] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
     const [startTime, setStartTime] = useState(null);
     const [elapsedTime, setElapsedTime] = useState(0); // In seconds
 
@@ -29,10 +30,11 @@ export const TimerProvider = ({ children }) => {
                 if (parsedState.activeTask) {
                     setActiveTask(parsedState.activeTask);
                     setIsRunning(parsedState.isRunning);
+                    setIsPaused(parsedState.isPaused || false);
                     setStartTime(parsedState.startTime);
 
-                    // Calculate elapsed time correctly if it was running
-                    if (parsedState.isRunning && parsedState.startTime) {
+                    // Calculate elapsed time correctly if it was running and not paused
+                    if (parsedState.isRunning && !parsedState.isPaused && parsedState.startTime) {
                         const now = Date.now();
                         const additionalElapsed = Math.floor((now - parsedState.lastTick) / 1000);
                         setElapsedTime(parsedState.elapsedTime + additionalElapsed);
@@ -51,16 +53,17 @@ export const TimerProvider = ({ children }) => {
         const stateToSave = {
             activeTask,
             isRunning,
+            isPaused,
             startTime,
             elapsedTime,
             lastTick: Date.now()
         };
         localStorage.setItem('taskManager_timerState', JSON.stringify(stateToSave));
-    }, [activeTask, isRunning, startTime, elapsedTime]);
+    }, [activeTask, isRunning, isPaused, startTime, elapsedTime]);
 
     // Timer tick logic
     useEffect(() => {
-        if (isRunning) {
+        if (isRunning && !isPaused) {
             timerIntervalRef.current = setInterval(() => {
                 setElapsedTime(prev => prev + 1);
             }, 1000);
@@ -75,13 +78,11 @@ export const TimerProvider = ({ children }) => {
                 clearInterval(timerIntervalRef.current);
             }
         };
-    }, [isRunning]);
+    }, [isRunning, isPaused]);
 
     const startTimer = (task) => {
         // If another task is already running, stop it first or warn
         if (activeTask && activeTask._id !== task._id) {
-            // Optional: Auto-stop previous task or ask confirmation. 
-            // For now, let's just switch to new task.
             stopTimer();
         }
 
@@ -92,11 +93,13 @@ export const TimerProvider = ({ children }) => {
         }
 
         setIsRunning(true);
+        setIsPaused(false);
         toast.success(`Timer started: ${task.title}`);
     };
 
     const stopTimer = () => {
         setIsRunning(false);
+        setIsPaused(false);
         setActiveTask(null);
         setElapsedTime(0);
         setStartTime(null);
@@ -105,10 +108,14 @@ export const TimerProvider = ({ children }) => {
 
     const clearTimer = () => {
         stopTimer();
-        setActiveTask(null);
-        setElapsedTime(0);
-        setStartTime(null);
-        localStorage.removeItem('taskManager_timerState');
+    };
+
+    const pauseLocalTimer = () => {
+        setIsPaused(true);
+    };
+
+    const resumeLocalTimer = () => {
+        setIsPaused(false);
     };
 
     const syncTimer = (task, timerData) => {
@@ -116,12 +123,18 @@ export const TimerProvider = ({ children }) => {
 
         setActiveTask(task);
         setIsRunning(true);
+        setIsPaused(timerData.isPaused || false);
         setStartTime(timerData.startTime);
 
-        const start = new Date(timerData.startTime).getTime();
-        const now = Date.now();
-        const elapsed = Math.floor((now - start) / 1000);
-        setElapsedTime(elapsed >= 0 ? elapsed : 0);
+        if (timerData.isPaused) {
+            setElapsedTime(timerData.accumulatedTime || 0);
+        } else {
+            const start = new Date(timerData.lastResumedAt || timerData.startTime).getTime();
+            const now = Date.now();
+            const elapsed = Math.floor((now - start) / 1000);
+            const totalElapsed = (timerData.accumulatedTime || 0) + (elapsed >= 0 ? elapsed : 0);
+            setElapsedTime(totalElapsed);
+        }
     };
 
     const formatTime = (seconds) => {
@@ -135,12 +148,15 @@ export const TimerProvider = ({ children }) => {
         <TimerContext.Provider value={{
             activeTask,
             isRunning,
+            isPaused,
             elapsedTime,
             startTimer,
             stopTimer,
             clearTimer,
             syncTimer,
-            formatTime
+            formatTime,
+            pauseLocalTimer,
+            resumeLocalTimer
         }}>
             {children}
         </TimerContext.Provider>

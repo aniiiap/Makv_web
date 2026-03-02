@@ -18,6 +18,8 @@ import BillGenerator from '../pages/taskManager.BillGenerator';
 import AdminDashboard from '../pages/taskManager.AdminDashboard';
 import ManageUsers from '../pages/taskManager.ManageUsers';
 import FirstLoginPasswordSetup from '../pages/taskManager.FirstLoginPasswordSetup';
+import Clients from '../pages/taskManager.Clients';
+import ClientDetail from '../pages/taskManager.ClientDetail';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const clientIdToUse = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.trim() !== ''
@@ -68,6 +70,20 @@ function TaskFlowApp() {
                   <PrivateRoute>
                     <Layout>
                       <TaskManagerTeams />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="clients" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <Clients />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="clients/:id" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <ClientDetail />
                     </Layout>
                   </PrivateRoute>
                 } />

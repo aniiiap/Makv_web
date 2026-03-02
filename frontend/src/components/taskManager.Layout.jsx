@@ -6,7 +6,7 @@ import { useTheme } from '../context/taskManager.ThemeContext';
 import { useTimer } from '../context/taskManager.TimerContext';
 import Notifications from './taskManager.Notifications';
 import { GoogleLogin } from '@react-oauth/google';
-import { FiLayout, FiUsers, FiCheckSquare, FiMenu, FiX, FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, FiShield } from 'react-icons/fi';
+import { FiLayout, FiUsers, FiCheckSquare, FiMenu, FiX, FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, FiShield, FiBriefcase, FiPause, FiPlay } from 'react-icons/fi';
 
 // Avatar component with fallback for sidebar
 const SidebarAvatar = ({ user }) => {
@@ -47,6 +47,7 @@ const Layout = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/taskflow/dashboard', icon: FiLayout },
     { name: 'Teams', href: '/taskflow/teams', icon: FiUsers },
+    { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText },
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
@@ -61,18 +62,18 @@ const Layout = ({ children }) => {
 
   // Timer Widget Component
   const SidebarTimer = () => {
-    const { activeTask, isRunning, elapsedTime, formatTime, stopTimer } = useTimer();
+    const { activeTask, isRunning, isPaused, elapsedTime, formatTime, stopTimer, pauseLocalTimer, resumeLocalTimer } = useTimer();
     const { isDark } = useTheme();
 
-    if (!activeTask || !isRunning) return null;
+    if (!activeTask || (!isRunning && !isPaused)) return null;
 
     return (
       <div className={`mx-4 mb-4 p-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-primary-50 border-primary-100'}`}>
         <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-primary-700'}`}>
-            Active Timer
+            {isPaused ? 'Paused Timer' : 'Active Timer'}
           </span>
-          <div className={`w-2 h-2 rounded-full bg-green-500 animate-pulse`} />
+          <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-green-500 animate-pulse'}`} />
         </div>
 
         <div className={`text-sm font-medium mb-1 truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -83,21 +84,56 @@ const Layout = ({ children }) => {
           <div className={`text-xl font-mono font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {formatTime(elapsedTime)}
           </div>
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              try {
-                await api.post(`/tasks/${activeTask._id}/timer/stop`);
-              } catch (error) {
-                console.error('Failed to stop timer on backend:', error);
-              }
-              stopTimer();
-            }}
-            className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
-            title="Stop Timer"
-          >
-            <FiSquare className="w-4 h-4 fill-current" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isPaused ? (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.post(`/tasks/${activeTask._id}/timer/resume`);
+                    resumeLocalTimer();
+                  } catch (error) {
+                    console.error('Failed to resume timer:', error);
+                  }
+                }}
+                className="p-1.5 bg-green-100 text-green-600 rounded hover:bg-green-200 transition-colors"
+                title="Resume Timer"
+              >
+                <FiPlay className="w-4 h-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.post(`/tasks/${activeTask._id}/timer/pause`);
+                    pauseLocalTimer();
+                  } catch (error) {
+                    console.error('Failed to pause timer:', error);
+                  }
+                }}
+                className="p-1.5 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200 transition-colors"
+                title="Pause Timer"
+              >
+                <FiPause className="w-4 h-4 fill-current" />
+              </button>
+            )}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  await api.post(`/tasks/${activeTask._id}/timer/stop`);
+                } catch (error) {
+                  console.error('Failed to stop timer on backend:', error);
+                }
+                stopTimer();
+              }}
+              className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
+              title="Stop Timer"
+            >
+              <FiSquare className="w-4 h-4 fill-current" />
+            </button>
+          </div>
         </div>
       </div>
     );

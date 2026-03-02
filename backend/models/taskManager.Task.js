@@ -16,6 +16,11 @@ const taskSchema = new mongoose.Schema(
       ref: 'TaskManagerTeam',
       // Team is optional - allows personal tasks
     },
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+      // Optional - links task to an office client
+    },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TaskManagerUser',
@@ -117,10 +122,20 @@ const taskSchema = new mongoose.Schema(
     ],
     activeTimer: {
       startTime: Date,
+      lastResumedAt: Date,
       userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'TaskManagerUser',
       },
+      isPaused: {
+        type: Boolean,
+        default: false
+      },
+      pausedAt: Date,
+      accumulatedTime: {
+        type: Number,
+        default: 0
+      }
     },
   },
   {
@@ -132,6 +147,7 @@ const taskSchema = new mongoose.Schema(
 taskSchema.index({ team: 1, status: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ dueDate: 1 });
+taskSchema.index({ client: 1 });
 
 module.exports = mongoose.model('TaskManagerTask', taskSchema);
 

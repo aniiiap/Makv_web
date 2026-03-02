@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiDollarSign } from 'react-icons/fi';
+import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiDollarSign, FiBriefcase } from 'react-icons/fi';
 import api from '../utils/taskManager.api';
 
 const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask }) => {
@@ -142,6 +142,12 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                       <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
                         <FiTag className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                         {task.tags[0]}
+                      </span>
+                    )}
+                    {task.client && (
+                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full">
+                        <FiBriefcase className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        {task.client.name || task.client.companyName || 'Client'}
                       </span>
                     )}
                   </div>

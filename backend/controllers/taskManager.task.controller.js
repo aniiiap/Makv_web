@@ -28,7 +28,7 @@ const createActivityLog = async (taskId, userId, action, field, oldValue, newVal
 // @access  Private
 exports.getTasks = async (req, res, next) => {
   try {
-    const { team, status, assignedTo } = req.query;
+    const { team, status, assignedTo, priority, searchQuery, client } = req.query;
     const query = {};
 
     // Filter by team
@@ -63,10 +63,11 @@ exports.getTasks = async (req, res, next) => {
 
       const teamIds = teams.map((t) => t._id);
 
-      // Include personal tasks (no team) OR team tasks
+      // Include personal tasks (no team) OR team tasks OR client tasks
       query.$or = [
         { team: { $in: teamIds } },
-        { team: null, createdBy: req.user.id }
+        { team: null, createdBy: req.user.id },
+        { client: { $ne: null } }
       ];
     }
 
@@ -90,11 +91,52 @@ exports.getTasks = async (req, res, next) => {
       }
     }
 
+    // Filter by priority
+    if (priority) {
+      if (query.$or) {
+        query.$or = query.$or.map(condition => ({ ...condition, priority }));
+      } else {
+        query.priority = priority;
+      }
+    }
+
+    // Filter by client
+    if (client) {
+      if (query.$or) {
+        query.$or = query.$or.map(condition => ({ ...condition, client }));
+      } else {
+        query.client = client;
+      }
+    }
+
+    // Filter by search query (Title or Description)
+    if (searchQuery && searchQuery.trim() !== '') {
+      const searchRegex = { $regex: searchQuery, $options: 'i' };
+      const searchCondition = {
+        $or: [
+          { title: searchRegex },
+          { description: searchRegex }
+        ]
+      };
+
+      if (query.$or) {
+        // Merge into the existing $or conditionally
+        query.$and = [
+          { $or: query.$or },
+          searchCondition
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchCondition.$or;
+      }
+    }
+
     const tasks = await TaskManagerTask.find(query)
       .populate('team', 'name')
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
       .populate('comments.user', 'name email avatar')
+      .populate('client', 'name companyName')
       .sort('-createdAt');
 
     res.json({
@@ -116,7 +158,8 @@ exports.getTask = async (req, res, next) => {
       .populate('team', 'name')
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
-      .populate('comments.user', 'name email avatar');
+      .populate('comments.user', 'name email avatar')
+      .populate('client', 'name companyName');
 
     if (!task) {
       return res.status(404).json({
@@ -141,9 +184,11 @@ exports.getTask = async (req, res, next) => {
           message: 'Not authorized to view this task',
         });
       }
+    } else if (task.client) {
+      // Client task - any authenticated user can view
     } else {
       // Personal task - only creator can view
-      if (task.createdBy.toString() !== req.user.id.toString()) {
+      if (task.createdBy._id.toString() !== req.user.id.toString()) {
         return res.status(403).json({
           success: false,
           message: 'Not authorized to view this task',
@@ -165,7 +210,7 @@ exports.getTask = async (req, res, next) => {
 // @access  Private
 exports.createTask = async (req, res, next) => {
   try {
-    const { title, description, team, assignedTo, status, priority, dueDate, tags } =
+    const { title, description, team, assignedTo, status, priority, dueDate, tags, client } =
       req.body;
 
     let teamDoc = null;
@@ -198,8 +243,8 @@ exports.createTask = async (req, res, next) => {
           });
         }
       }
-    } else {
-      // Personal task - can only assign to self
+    } else if (!client) {
+      // Personal task (no team, no client) - can only assign to self
       if (assignedTo && assignedTo !== req.user.id.toString()) {
         return res.status(400).json({
           success: false,
@@ -207,11 +252,13 @@ exports.createTask = async (req, res, next) => {
         });
       }
     }
+    // If client is provided (client-linked task), any user can be assigned
 
     const task = await TaskManagerTask.create({
       title,
       description,
       team,
+      client: client || null,
       assignedTo: assignedTo || null,
       createdBy: req.user.id,
       status: status || 'todo',
@@ -224,7 +271,8 @@ exports.createTask = async (req, res, next) => {
     const populatedTask = await TaskManagerTask.findById(task._id)
       .populate('team', 'name')
       .populate('assignedTo', 'name email avatar')
-      .populate('createdBy', 'name email avatar');
+      .populate('createdBy', 'name email avatar')
+      .populate('client', 'name companyName');
 
     // Create activity log for task creation
     await createActivityLog(
@@ -329,29 +377,9 @@ exports.updateTask = async (req, res, next) => {
           });
         }
       }
-    } else {
-      // Personal task - only creator can update
-      if (task.createdBy.toString() !== req.user.id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'Not authorized to update this task',
-        });
-      }
 
-      // Personal tasks can only be assigned to self
-      if (req.body.assignedTo && req.body.assignedTo !== req.user.id.toString()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Personal tasks can only be assigned to yourself',
-        });
-      }
-    }
-
-    // Permission Check for Team Tasks
-    if (task.team) {
-      const teamId = task.team._id || task.team;
-      const team = await TaskManagerTeam.findById(teamId);
-      const member = team ? team.members.find(m => m.user && m.user.toString() === req.user.id.toString()) : null;
+      // Permission Check for Team Tasks
+      const member = team.members.find(m => m.user && m.user.toString() === req.user.id.toString());
       const userRole = member ? member.role : 'member';
 
       // If user is just a member (not owner/admin), they CANNOT change:
@@ -377,6 +405,25 @@ exports.updateTask = async (req, res, next) => {
             message: 'Only Team Admins can reassign tasks',
           });
         }
+      }
+    } else if (task.client) {
+      // Client task - no team restrictions or personal task restrictions.
+      // Anyone who can view it (authenticated) can edit it for now.
+    } else {
+      // Personal task - only creator can update
+      if (task.createdBy.toString() !== req.user.id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this task',
+        });
+      }
+
+      // Personal tasks can only be assigned to self
+      if (req.body.assignedTo && req.body.assignedTo !== req.user.id.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Personal tasks can only be assigned to yourself',
+        });
       }
     }
 
@@ -1290,7 +1337,10 @@ exports.startTimer = async (req, res, next) => {
     const userId = req.user._id || req.user.id;
     task.activeTimer = {
       startTime: new Date(),
+      lastResumedAt: new Date(),
       userId: userId,
+      isPaused: false,
+      accumulatedTime: 0
     };
 
     // Mark the nested field as modified if needed
@@ -1353,7 +1403,12 @@ exports.stopTimer = async (req, res, next) => {
 
     const startTime = new Date(task.activeTimer.startTime);
     const endTime = new Date();
-    const duration = Math.floor((endTime - startTime) / 1000); // Duration in seconds
+
+    let duration = task.activeTimer.accumulatedTime || 0;
+    if (!task.activeTimer.isPaused) {
+      const lastResumedAt = new Date(task.activeTimer.lastResumedAt || task.activeTimer.startTime);
+      duration += Math.floor((endTime - lastResumedAt) / 1000); // Duration in seconds
+    }
 
     // Add time entry
     task.timeEntries.push({
@@ -1396,6 +1451,87 @@ exports.stopTimer = async (req, res, next) => {
       data: populatedTask,
       loggedTime: duration,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Pause timer for task
+// @route   POST /api/tasks/:id/timer/pause
+// @access  Private
+exports.pauseTimer = async (req, res, next) => {
+  try {
+    const task = await TaskManagerTask.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    if (!task.activeTimer || task.activeTimer.userId.toString() !== req.user.id.toString()) {
+      return res.status(400).json({ success: false, message: 'No active timer found for this user' });
+    }
+
+    if (task.activeTimer.isPaused) {
+      return res.status(400).json({ success: false, message: 'Timer is already paused' });
+    }
+
+    const lastResumedAt = new Date(task.activeTimer.lastResumedAt || task.activeTimer.startTime);
+    const now = new Date();
+    const durationSinceStartOrResume = Math.floor((now - lastResumedAt) / 1000);
+
+    // Update accumulated time
+    task.activeTimer.accumulatedTime = (task.activeTimer.accumulatedTime || 0) + durationSinceStartOrResume;
+    task.activeTimer.isPaused = true;
+    task.activeTimer.pausedAt = now;
+    task.markModified('activeTimer');
+    await task.save();
+
+    const populatedTask = await TaskManagerTask.findById(task._id)
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar')
+      .populate('comments.user', 'name email avatar');
+
+    res.json({ success: true, data: populatedTask });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resume timer for task
+// @route   POST /api/tasks/:id/timer/resume
+// @access  Private
+exports.resumeTimer = async (req, res, next) => {
+  try {
+    const task = await TaskManagerTask.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    if (!task.activeTimer || task.activeTimer.userId.toString() !== req.user.id.toString()) {
+      return res.status(400).json({ success: false, message: 'No active timer found for this user' });
+    }
+
+    if (!task.activeTimer.isPaused) {
+      return res.status(400).json({ success: false, message: 'Timer is not paused' });
+    }
+
+    // Reset lastResumedAt to now, unpause
+    task.activeTimer.lastResumedAt = new Date();
+    task.activeTimer.isPaused = false;
+    task.activeTimer.pausedAt = undefined;
+
+    task.markModified('activeTimer');
+    await task.save();
+
+    const populatedTask = await TaskManagerTask.findById(task._id)
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar')
+      .populate('comments.user', 'name email avatar');
+
+    res.json({ success: true, data: populatedTask });
   } catch (error) {
     next(error);
   }

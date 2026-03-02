@@ -14,6 +14,8 @@ const {
   deleteSubtask,
   startTimer,
   stopTimer,
+  pauseTimer,
+  resumeTimer,
   logTime,
   deleteTimeEntry,
   resetTimeTracking,
@@ -38,6 +40,8 @@ router.post('/:id/subtasks', addSubtask);
 router.put('/:id/subtasks/:subtaskId', updateSubtask);
 router.delete('/:id/subtasks/:subtaskId', deleteSubtask);
 router.post('/:id/timer/start', startTimer);
+router.post('/:id/timer/pause', pauseTimer);
+router.post('/:id/timer/resume', resumeTimer);
 router.post('/:id/timer/stop', stopTimer);
 router.post('/:id/timer/log', logTime);
 router.delete('/:id/timer/entries/:entryIndex', deleteTimeEntry);

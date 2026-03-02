@@ -79,6 +79,40 @@ const BillGenerator = () => {
         fetchInitialData();
     }, []);
 
+    // Auto-fill buyer details from client when redirected from a client task
+    useEffect(() => {
+        if (!taskId) return;
+        const fetchTaskAndClient = async () => {
+            try {
+                const taskRes = await api.get(`/tasks/${taskId}`);
+                const task = taskRes?.data || taskRes;
+                if (task?.client) {
+                    // Fetch full client details
+                    const clientId = task.client._id || task.client;
+                    const clientRes = await api.get(`/clients/${clientId}`);
+                    const client = clientRes?.client || clientRes?.data?.client || clientRes;
+                    if (client && client.name) {
+                        setFormData(prev => ({
+                            ...prev,
+                            buyerDetails: {
+                                ...prev.buyerDetails,
+                                clientId: client._id,
+                                name: client.name || '',
+                                address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
+                                gstin: client.gstin || '',
+                                stateCode: client.stateCode || '06',
+                            },
+                            sentToEmail: client.email || prev.sentToEmail,
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching task/client for auto-fill:', error);
+            }
+        };
+        fetchTaskAndClient();
+    }, [taskId]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -243,26 +277,7 @@ const BillGenerator = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Bill For (Team or Personal) */}
-                    <div>
-                        <label className={labelClass}>Bill For</label>
-                        <select
-                            name="team"
-                            value={formData.team}
-                            onChange={handleChange}
-                            className={inputClass}
-                        >
-                            <option value="">Personal (No Team)</option>
-                            {teams.map(team => (
-                                <option key={team._id} value={team._id}>
-                                    {team.name}
-                                </option>
-                            ))}
-                        </select>
-                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Select a team to share this bill with team members. Leave as "Personal" to keep it private.
-                        </p>
-                    </div>
+
 
                     {/* Main Info */}
                     <div className="grid md:grid-cols-2 gap-6">
@@ -550,7 +565,7 @@ const BillGenerator = () => {
                     </div>
                 </form>
             </div>
-        </div>
+        </div >
     );
 };
 

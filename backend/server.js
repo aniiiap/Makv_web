@@ -87,6 +87,7 @@ app.use('/api/taskflow/notifications', require('./routes/taskManager.notificatio
 app.use('/api/taskflow/users', require('./routes/taskManager.user.routes'));
 app.use('/api/taskflow/bills', require('./routes/billRoutes'));
 app.use('/api/taskflow/admin', require('./routes/taskManager.admin.routes'));
+app.use('/api/taskflow/clients', require('./routes/taskManager.client.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
