@@ -301,8 +301,9 @@ exports.createTask = async (req, res, next) => {
 
       // Send email
       try {
-        const frontendBase =
-          process.env.FRONTEND_URL || 'http://localhost:3000';
+        // Parse frontend URL to handle comma-separated values (e.g., from Render)
+        const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const frontendBase = rawFrontendUrl.split(',')[0].trim();
 
         await sendEmail({
           email: assignedUser.email,
@@ -453,8 +454,9 @@ exports.updateTask = async (req, res, next) => {
 
         // Send email
         try {
-          const frontendBase =
-            process.env.FRONTEND_URL || 'http://localhost:3000';
+          // Parse frontend URL to handle comma-separated values
+          const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+          const frontendBase = rawFrontendUrl.split(',')[0].trim();
 
           await sendEmail({
             email: assignedUser.email,

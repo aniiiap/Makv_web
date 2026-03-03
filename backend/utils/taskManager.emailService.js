@@ -65,7 +65,7 @@ const sendEmail = async ({ email, subject, message, html, attachments }) => {
 const sendInvitationEmail = async ({ name, email, temporaryPassword }) => {
   const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
   const loginUrl = frontendUrls.length > 0
-    ? `${frontendUrls[0]}/taskflow/login`
+    ? `${frontendUrls[0].trim()}/taskflow/login`
     : 'https://www.makv.in/taskflow/login';
 
   const html = `

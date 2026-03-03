@@ -438,7 +438,9 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Create reset url
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
+    const baseUrl = frontendUrls.length > 0 ? frontendUrls[0].trim() : 'http://localhost:3000';
+    const resetUrl = `${baseUrl}/taskflow/reset-password/${resetToken}`;
 
     try {
       await sendEmail({
