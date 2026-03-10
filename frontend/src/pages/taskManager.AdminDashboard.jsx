@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUsers, FiUserPlus, FiShield, FiTrendingUp, FiLogOut } from 'react-icons/fi';
+import { FiUsers, FiUserPlus, FiShield, FiTrendingUp, FiLogOut, FiFileText } from 'react-icons/fi';
 import adminApi from '../utils/adminApi';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 
@@ -113,7 +113,7 @@ const AdminDashboard = () => {
                 {/* Quick Actions */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <button
                             onClick={() => navigate('/taskflow/admin/users')}
                             className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all group"
@@ -124,6 +124,19 @@ const AdminDashboard = () => {
                             <div className="text-left">
                                 <h3 className="font-semibold text-gray-900">Manage Users</h3>
                                 <p className="text-sm text-gray-600">View, create, and manage user accounts</p>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/taskflow/admin/payslip')}
+                            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-amber-500 hover:bg-amber-50 transition-all group"
+                        >
+                            <div className="bg-amber-100 p-3 rounded-lg group-hover:bg-amber-200 transition-colors">
+                                <FiFileText className="w-6 h-6 text-amber-600" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-gray-900">Generate Pay Slip</h3>
+                                <p className="text-sm text-gray-600">Create payment receipts for clients</p>
                             </div>
                         </button>
 

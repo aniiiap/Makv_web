@@ -73,7 +73,7 @@ const AdminDashboard = () => {
     }
 
     const formData = new FormData();
-    
+
     // Handle both single file (backward compatibility) and multiple files
     if (uploadFile.length) {
       // Multiple files
@@ -94,7 +94,7 @@ const AdminDashboard = () => {
         },
       });
       setUploadResult(response.data);
-      
+
       // If requires review (PDF/Word files), show preview modal
       if (response.data.requiresReview && response.data.extractedData && response.data.extractedData.length > 0) {
         // Prepare clients for editing (add empty fields if missing)
@@ -136,22 +136,22 @@ const AdminDashboard = () => {
   const handleSaveExtractedClients = async () => {
     try {
       setSavingClients(true);
-      
+
       let savedCount = 0;
       let skippedCount = 0;
-      
+
       // Save each client
       for (const client of extractedClients) {
         // Validate required fields: Name and PAN (Email is optional)
         const name = client.name ? client.name.trim() : '';
         const pan = client.pan ? client.pan.trim().replace(/[^A-Z0-9]/g, '') : '';
-        
+
         if (!name || name.length < 3 || !pan || pan.length !== 10) {
           skippedCount++;
           console.warn(`Skipping client: Name="${name}", PAN="${pan}" (validation failed)`);
           continue; // Skip invalid clients
         }
-        
+
         // Clean and prepare client data before sending
         // Remove temporary fields like id, _sourceFile, etc.
         const clientData = {
@@ -167,18 +167,18 @@ const AdminDashboard = () => {
           aadhar: client.aadhar || '',
           gstin: client.gstin || '',
         };
-        
+
         // Remove empty strings and convert to undefined (except required fields)
         Object.keys(clientData).forEach(key => {
           if (clientData[key] === '' && key !== 'pan' && key !== 'name') {
             delete clientData[key];
           }
         });
-        
+
         try {
           console.log(`Attempting to save client: ${name}, PAN: ${pan}`);
           console.log('Client data:', JSON.stringify(clientData, null, 2));
-          
+
           const response = await api.post('/clients', clientData);
           if (response.data && response.data.success) {
             // Check if client was skipped (already exists)
@@ -197,21 +197,21 @@ const AdminDashboard = () => {
           console.error('Client data that failed:', JSON.stringify(clientData, null, 2));
           console.error('Original client object:', client);
           console.error('Error response:', error.response?.data);
-          
+
           // Log specific error details
           const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error';
           console.error(`Failed to save client "${name || 'Unknown'}": ${errorMessage}`);
-          
+
           skippedCount++;
           // Continue with next client
         }
       }
-      
+
       // Close modal and refresh client list
       setShowExtractedDataModal(false);
       setExtractedClients([]);
       fetchClients();
-      
+
       if (savedCount > 0) {
         toast.success(`✅ Successfully saved ${savedCount} client(s)${skippedCount > 0 ? `. ${skippedCount} client(s) skipped (missing Name or PAN)` : ''}`, {
           duration: 4000,
@@ -285,7 +285,7 @@ const AdminDashboard = () => {
   const handleUpdateClient = async (e) => {
     e.preventDefault();
     if (!editingClient?._id) return;
-    
+
     try {
       await api.put(`/clients/${editingClient._id}`, editingClient);
       setShowEditModal(false);
@@ -355,10 +355,10 @@ const AdminDashboard = () => {
         responseType: 'blob',
       });
 
-      const contentType = response.headers['content-type'] || 
-                         response.headers['Content-Type'] || 
-                         'application/pdf';
-      
+      const contentType = response.headers['content-type'] ||
+        response.headers['Content-Type'] ||
+        'application/pdf';
+
       const blob = new Blob([response.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -392,10 +392,10 @@ const AdminDashboard = () => {
         responseType: 'blob',
       });
 
-      const contentType = response.headers['content-type'] || 
-                         response.headers['Content-Type'] || 
-                         'application/octet-stream';
-      
+      const contentType = response.headers['content-type'] ||
+        response.headers['Content-Type'] ||
+        'application/octet-stream';
+
       const blob = new Blob([response.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -444,13 +444,13 @@ const AdminDashboard = () => {
     setShowDocumentUploadModal(false);
     const fileCount = documentFiles.length;
     const fileName = documentFiles[0]?.name || 'file';
-    
+
     // Show loading toast immediately
     const loadingToast = toast.loading(`Uploading ${fileCount} file(s)...`);
-    
+
     try {
       setUploadingDocuments(true);
-      
+
       const response = await api.post(`/documents/${selectedClient._id}`, formData, {
         headers: {
           // Don't set Content-Type - let axios set it automatically with boundary
@@ -464,21 +464,21 @@ const AdminDashboard = () => {
           }
         },
       });
-      
+
       if (response.data && response.data.success) {
         // Dismiss loading toast and show success
         toast.dismiss(loadingToast);
         toast.success(`✅ ${fileCount} file(s) uploaded successfully!`, {
           duration: 3000,
         });
-        
+
         // Reset state
         setUploadingDocuments(false);
         setDocumentFiles([]);
         setDocumentType('other');
         setDocumentDescription('');
         setSelectedClient(null);
-        
+
         // Refresh client list
         fetchClients();
       } else {
@@ -486,13 +486,13 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      
+
       // Dismiss loading toast and show error
       toast.dismiss(loadingToast);
-      
+
       // Get error message
       let errorMessage = 'Failed to upload documents. Please try again.';
-      
+
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.response?.data?.error) {
@@ -500,14 +500,14 @@ const AdminDashboard = () => {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast.error(`❌ ${errorMessage}`, {
         duration: 4000,
       });
-      
+
       // Reset state
       setUploadingDocuments(false);
-      
+
       // Reopen modal on error so user can retry
       setShowDocumentUploadModal(true);
     }
@@ -706,7 +706,7 @@ const AdminDashboard = () => {
               Upload multiple CSV, Excel, PDF, or Word (.docx) files with client data. The system will extract: PAN, Name, Address, Aadhaar, Email, Mobile, and other fields.
             </p>
             <p className="text-xs text-blue-600 mb-4">
-              <strong>CSV/Excel:</strong> Required: Name. Optional: Email, Phone, Company, Address, City, State, Pincode, PAN, Aadhaar, GSTIN<br/>
+              <strong>CSV/Excel:</strong> Required: Name. Optional: Email, Phone, Company, Address, City, State, Pincode, PAN, Aadhaar, GSTIN<br />
               <strong>PDF/Word:</strong> Each file = one client. System extracts data automatically (Name and PAN are required).
             </p>
             <form onSubmit={handleFileUpload}>
@@ -723,9 +723,8 @@ const AdminDashboard = () => {
               </p>
               {uploadResult && (
                 <div
-                  className={`mb-4 p-3 rounded-lg ${
-                    uploadResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                  }`}
+                  className={`mb-4 p-3 rounded-lg ${uploadResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                    }`}
                 >
                   {uploadResult.success ? (
                     <div>
@@ -798,7 +797,7 @@ const AdminDashboard = () => {
             <p className="text-sm text-gray-600 mb-4">
               Review the extracted data from your files. You can edit any field before saving. Make sure Name and PAN are filled (Email is optional).
             </p>
-            
+
             <div className="space-y-4 mb-4">
               {extractedClients.map((client, idx) => (
                 <div key={client.id} className="border rounded-lg p-4">
@@ -1021,11 +1020,11 @@ const AdminDashboard = () => {
                 />
                 <input
                   type="text"
-                placeholder="PAN"
-                value={newClient.pan}
-                onChange={(e) => setNewClient({ ...newClient, pan: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg"
-              />
+                  placeholder="PAN"
+                  value={newClient.pan}
+                  onChange={(e) => setNewClient({ ...newClient, pan: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
                 <input
                   type="text"
                   placeholder="Aadhaar"
@@ -1198,6 +1197,8 @@ const AdminDashboard = () => {
                 >
                   <option value="other">Other</option>
                   <option value="payslip">Payslip</option>
+                  <option value="invoice">Invoice</option>
+                  <option value="huf-invoice">HUF Invoice</option>
                   <option value="acknowledgment">Acknowledgment</option>
                   <option value="certificate">Certificate</option>
                 </select>

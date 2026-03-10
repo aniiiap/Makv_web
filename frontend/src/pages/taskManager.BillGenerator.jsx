@@ -199,12 +199,17 @@ const BillGenerator = () => {
         }, 0);
         const total = subtotal + taxAmount;
 
+        // Maharashtra state code = 27 → CGST + SGST, else IGST
+        const isMaharashtra = formData.buyerDetails.stateCode === '27';
+
         return {
             subtotal,
             taxableAmount: subtotal,
             tax: taxAmount,
-            cgst: taxAmount / 2,
-            sgst: taxAmount / 2,
+            cgst: isMaharashtra ? taxAmount / 2 : 0,
+            sgst: isMaharashtra ? taxAmount / 2 : 0,
+            igst: isMaharashtra ? 0 : taxAmount,
+            isMaharashtra,
             total: total
         };
     };
@@ -234,7 +239,8 @@ const BillGenerator = () => {
                 taxDetails: {
                     cgst: totals.cgst,
                     sgst: totals.sgst,
-                    igst: 0,
+                    igst: totals.igst,
+                    isMaharashtra: totals.isMaharashtra,
                     totalAmount: totals.total,
                     taxableAmount: totals.taxableAmount
                 },
@@ -533,14 +539,23 @@ const BillGenerator = () => {
                                     <span>Taxable Value:</span>
                                     <span>₹{totals.taxableAmount.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between text-sm opacity-80">
-                                    <span>CGST ({totals.tax > 0 ? totals.tax / totals.taxableAmount * 50 : 0}%):</span>
-                                    <span>₹{totals.cgst.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm opacity-80 pb-2 border-b border-gray-300 dark:border-gray-600">
-                                    <span>SGST:</span>
-                                    <span>₹{totals.sgst.toFixed(2)}</span>
-                                </div>
+                                {totals.isMaharashtra ? (
+                                    <>
+                                        <div className="flex justify-between text-sm opacity-80">
+                                            <span>CGST (9%):</span>
+                                            <span>₹{totals.cgst.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm opacity-80 pb-2 border-b border-gray-300 dark:border-gray-600">
+                                            <span>SGST (9%):</span>
+                                            <span>₹{totals.sgst.toFixed(2)}</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex justify-between text-sm opacity-80 pb-2 border-b border-gray-300 dark:border-gray-600">
+                                        <span>IGST (18%):</span>
+                                        <span>₹{totals.igst.toFixed(2)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between font-bold text-xl pt-1">
                                     <span>Total Amount:</span>
                                     <span className="text-primary-600">₹{totals.total.toFixed(2)}</span>

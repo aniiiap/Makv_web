@@ -50,6 +50,7 @@ const Layout = ({ children }) => {
     { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText },
+    { name: 'Pay Slips', href: '/taskflow/payslips', icon: FiFileText },
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
   ];

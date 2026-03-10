@@ -36,7 +36,7 @@ const documentSchema = new mongoose.Schema({
   },
   documentType: {
     type: String,
-    enum: ['payslip', 'acknowledgment', 'certificate', 'other'],
+    enum: ['payslip', 'invoice', 'huf-invoice', 'acknowledgment', 'certificate', 'other'],
     default: 'other',
   },
   uploadedBy: {

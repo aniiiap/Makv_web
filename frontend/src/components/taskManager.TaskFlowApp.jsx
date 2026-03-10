@@ -15,6 +15,9 @@ import TaskManagerCalendar from '../pages/taskManager.Calendar';
 import TaskManagerAnalytics from '../pages/taskManager.Analytics';
 import BillList from '../pages/taskManager.BillList';
 import BillGenerator from '../pages/taskManager.BillGenerator';
+import HUFBillGenerator from '../pages/taskManager.HUFBillGenerator';
+import PaySlipGenerator from '../pages/taskManager.PaySlipGenerator';
+import PaySlipList from '../pages/taskManager.PaySlipList';
 import AdminDashboard from '../pages/taskManager.AdminDashboard';
 import ManageUsers from '../pages/taskManager.ManageUsers';
 import FirstLoginPasswordSetup from '../pages/taskManager.FirstLoginPasswordSetup';
@@ -108,10 +111,24 @@ function TaskFlowApp() {
                     </Layout>
                   </PrivateRoute>
                 } />
+                <Route path="payslips" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PaySlipList />
+                    </Layout>
+                  </PrivateRoute>
+                } />
                 <Route path="bills/create" element={
                   <PrivateRoute>
                     <Layout>
                       <BillGenerator />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="bills/create-huf" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <HUFBillGenerator />
                     </Layout>
                   </PrivateRoute>
                 } />
@@ -125,6 +142,13 @@ function TaskFlowApp() {
                 <Route path="admin/users" element={
                   <PrivateRoute>
                     <ManageUsers />
+                  </PrivateRoute>
+                } />
+                <Route path="admin/payslip" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PaySlipGenerator />
+                    </Layout>
                   </PrivateRoute>
                 } />
 
