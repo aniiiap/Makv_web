@@ -111,18 +111,25 @@ const Dashboard = () => {
       link: '/taskflow/tasks?assignedTo=me',
     },
     {
+      name: 'My Completed',
+      value: stats?.myDoneTasks || 0,
+      icon: FiCheckCircle,
+      color: 'from-emerald-500 to-emerald-600',
+      link: '/taskflow/tasks?status=done&assignedTo=me',
+    },
+    {
+      name: 'Completed (All)',
+      value: stats?.doneTasks || 0,
+      icon: FiCheckCircle,
+      color: 'from-green-500 to-green-600',
+      link: '/taskflow/tasks?status=done',
+    },
+    {
       name: 'In Progress',
       value: stats?.inProgressTasks || 0,
       icon: FiRefreshCw,
       color: 'from-yellow-500 to-yellow-600',
       link: '/taskflow/tasks?status=in-progress',
-    },
-    {
-      name: 'Completed',
-      value: stats?.doneTasks || 0,
-      icon: FiCheckCircle,
-      color: 'from-green-500 to-green-600',
-      link: '/taskflow/tasks?status=done',
     },
     {
       name: 'Overdue',

@@ -858,42 +858,59 @@ exports.getAnalyticsStats = async (req, res, next) => {
   try {
     const { userId, timeRange } = req.query;
 
-    let taskQuery = {};
+    // Determine Date Range
+    const dateFilter = new Date();
+    dateFilter.setHours(0, 0, 0, 0);
+    if (timeRange === 'week') {
+      dateFilter.setDate(dateFilter.setDate() - 7);
+    } else if (timeRange === 'year') {
+      dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+    } else {
+      // Default to month (30 days)
+      dateFilter.setDate(dateFilter.getDate() - 30);
+    }
 
     // Feature 1: Admin User Progress Analytics
     if (req.user.role === 'admin' && userId) {
-      // Create date filter based on timeRange
-      const dateFilter = new Date();
-      if (timeRange === 'week') {
-        dateFilter.setDate(dateFilter.getDate() - 7);
-      } else if (timeRange === 'year') {
-        dateFilter.setFullYear(dateFilter.getFullYear() - 1);
-      } else {
-        // Default to month (30 days)
-        dateFilter.setDate(dateFilter.getDate() - 30);
-      }
-
-      // 1. Must be a Team or Client task (No personal tasks: team != null OR client != null)
-      // 2. User must have either been assigned to it OR logged time on it
-      // 3. Must fall within the timeRange
-      taskQuery = {
+      // 1. Must be a Team or Client task (No personal tasks for analytics)
+      // 2. User must be involved (assigned, created, or logged time)
+      // 3. Must be active or modified within the timeRange to show "progress"
+      const taskQuery = {
         $and: [
           { $or: [{ team: { $ne: null } }, { client: { $ne: null } }] },
-          { $or: [{ assignedTo: userId }, { 'timeEntries.userId': userId }] },
-          { updatedAt: { $gte: dateFilter } } // Using updatedAt to catch tasks worked on recently
+          {
+            $or: [
+              { assignedTo: userId },
+              { createdBy: userId },
+              { 'timeEntries.userId': userId }
+            ]
+          },
+          // For User Progress, we want to see tasks that were active in the period
+          // or tasks that are currently assigned to the user.
+          // This ensures we don't miss recently finished tasks.
+          { updatedAt: { $gte: dateFilter } }
         ]
       };
 
-      const tasks = await TaskManagerTask.find(taskQuery).select('title status timeEntries assignedTo');
+      const tasks = await TaskManagerTask.find(taskQuery).select('title status timeEntries assignedTo updatedAt');
 
       let totalTimeSpent = 0;
       let tasksWorkedOn = tasks.length;
+      let completedTasksCount = 0;
       let userTaskDetails = [];
 
       tasks.forEach(task => {
-        // Calculate only the chosen user's time on this task
+        // Count as completed if specifically assigned to this user OR if they created it, and it's done.
+        // We also check if it was completed within the timeRange (updatedAt >= dateFilter)
+        if (task.status === 'done') {
+          completedTasksCount++;
+        }
+
+        // Calculate only the chosen user's time on this task in this period
         const userTimeEntries = task.timeEntries.filter(
-          entry => entry.userId && entry.userId.toString() === userId.toString()
+          entry => entry.userId && 
+                   entry.userId.toString() === userId.toString() &&
+                   (entry.endTime || entry.startTime) >= dateFilter
         );
         const userTimeOnTask = userTimeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
 
@@ -904,6 +921,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
           title: task.title,
           status: task.status,
           userTimeSpent: userTimeOnTask,
+          updatedAt: task.updatedAt,
           isAssignedToUser: task.assignedTo && task.assignedTo.toString() === userId.toString()
         });
       });
@@ -913,56 +931,64 @@ exports.getAnalyticsStats = async (req, res, next) => {
         data: {
           isUserProgressMode: true,
           userId,
-          timeRange: timeRange || 'month',
+          timeRange: timeRange === 'year' ? 'past year' : (timeRange === 'week' ? 'past week' : 'past month'),
           tasksWorkedOn,
-          totalTimeSpent, // in seconds
+          completedTasksCount,
+          totalTimeSpent,
           taskDetails: userTaskDetails,
         }
       });
     }
 
-    // Default Analytics Logic (for normal users or admin overview)
-    // Get all teams user is member of
-    const teams = await TaskManagerTeam.find({
-      'members.user': req.user.id,
-      isActive: true,
-    }).select('_id');
+    // DEFAULT OVERVIEW MODE
+    let overviewQuery = {};
 
-    const teamIds = teams.map((t) => t._id);
+    if (req.user.role === 'admin') {
+      // Global Admins see all Client/Team tasks
+      overviewQuery = {
+        $or: [
+          { team: { $ne: null } },
+          { client: { $ne: null } }
+        ]
+      };
+    } else {
+      // Normal users see tasks in their teams + personal tasks
+      const userTeams = await TaskManagerTeam.find({
+        'members.user': req.user.id,
+        isActive: true,
+      }).select('_id');
+      const teamIds = userTeams.map((t) => t._id);
 
-    // Query for both team tasks and personal tasks
-    taskQuery = {
-      $or: [
-        { team: { $in: teamIds } },
-        { team: null, createdBy: req.user.id }
-      ]
-    };
+      overviewQuery = {
+        $or: [
+          { team: { $in: teamIds } },
+          { team: null, createdBy: req.user.id }
+        ]
+      };
+    }
 
-    // Get task counts by status
-    const todoTasks = await TaskManagerTask.countDocuments({ ...taskQuery, status: 'todo' });
-    const inProgressTasks = await TaskManagerTask.countDocuments({ ...taskQuery, status: 'in-progress' });
-    const inReviewTasks = await TaskManagerTask.countDocuments({ ...taskQuery, status: 'in-review' });
-    const doneTasks = await TaskManagerTask.countDocuments({ ...taskQuery, status: 'done' });
+    // Get task counts by status (Cumulative)
+    const todoTasks = await TaskManagerTask.countDocuments({ ...overviewQuery, status: 'todo' });
+    const inProgressTasks = await TaskManagerTask.countDocuments({ ...overviewQuery, status: 'in-progress' });
+    const inReviewTasks = await TaskManagerTask.countDocuments({ ...overviewQuery, status: 'in-review' });
+    const doneTasks = await TaskManagerTask.countDocuments({ ...overviewQuery, status: 'done' });
 
     // Get tasks by priority
-    const lowPriority = await TaskManagerTask.countDocuments({ ...taskQuery, priority: 'low' });
-    const mediumPriority = await TaskManagerTask.countDocuments({ ...taskQuery, priority: 'medium' });
-    const highPriority = await TaskManagerTask.countDocuments({ ...taskQuery, priority: 'high' });
-    const urgentPriority = await TaskManagerTask.countDocuments({ ...taskQuery, priority: 'urgent' });
+    const lowPriority = await TaskManagerTask.countDocuments({ ...overviewQuery, priority: 'low' });
+    const mediumPriority = await TaskManagerTask.countDocuments({ ...overviewQuery, priority: 'medium' });
+    const highPriority = await TaskManagerTask.countDocuments({ ...overviewQuery, priority: 'high' });
+    const urgentPriority = await TaskManagerTask.countDocuments({ ...overviewQuery, priority: 'urgent' });
 
-    // Get tasks created in last 30 days (daily breakdown)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+    // Get tasks created or updated in the period for the daily breakdown
     const recentTasks = await TaskManagerTask.find({
-      ...taskQuery,
-      createdAt: { $gte: thirtyDaysAgo }
-    }).select('createdAt status');
+      ...overviewQuery,
+      updatedAt: { $gte: dateFilter }
+    }).select('createdAt updatedAt status');
 
     // Group by date
     const tasksByDate = {};
     recentTasks.forEach(task => {
-      const date = new Date(task.createdAt).toISOString().split('T')[0];
+      const date = new Date(task.updatedAt).toISOString().split('T')[0];
       if (!tasksByDate[date]) {
         tasksByDate[date] = { total: 0, done: 0 };
       }
@@ -972,15 +998,24 @@ exports.getAnalyticsStats = async (req, res, next) => {
       }
     });
 
+    // Get my completed tasks in this context
+    const myDoneTasksCount = await TaskManagerTask.countDocuments({ 
+      ...overviewQuery, 
+      status: 'done',
+      assignedTo: req.user.id 
+    });
+
     res.json({
       success: true,
       data: {
+        isUserProgressMode: false,
         statusBreakdown: {
           todo: todoTasks,
           inProgress: inProgressTasks,
           inReview: inReviewTasks,
           done: doneTasks,
         },
+        myDoneTasksCount,
         priorityBreakdown: {
           low: lowPriority,
           medium: mediumPriority,
@@ -1020,18 +1055,20 @@ exports.getDashboardStats = async (req, res, next) => {
           createdBy: req.user.id
         };
       } else {
-        // Verify user is member of team
-        const teamDoc = await TaskManagerTeam.findOne({
-          _id: team,
-          'members.user': req.user.id,
-          isActive: true,
-        });
-
-        if (!teamDoc) {
-          return res.status(403).json({
-            success: false,
-            message: 'Not authorized to view stats from this team',
+        // Verify user is member of team (unless they are a global admin)
+        if (req.user.role !== 'admin') {
+          const teamDoc = await TaskManagerTeam.findOne({
+            _id: team,
+            'members.user': req.user.id,
+            isActive: true,
           });
+
+          if (!teamDoc) {
+            return res.status(403).json({
+              success: false,
+              message: 'Not authorized to view stats from this team',
+            });
+          }
         }
 
         taskQuery = { team: team };
@@ -1112,6 +1149,13 @@ exports.getDashboardStats = async (req, res, next) => {
       status: { $ne: 'done' },
     });
 
+    // Get my completed tasks count
+    const myDoneTasks = await TaskManagerTask.countDocuments({
+      ...taskQuery,
+      assignedTo: req.user.id,
+      status: 'done'
+    });
+
     res.json({
       success: true,
       data: {
@@ -1120,6 +1164,7 @@ exports.getDashboardStats = async (req, res, next) => {
         inProgressTasks,
         doneTasks,
         myTasks,
+        myDoneTasks,
         createdByMe,
         overdueTasks,
         dueSoonTasks,
@@ -1131,135 +1176,6 @@ exports.getDashboardStats = async (req, res, next) => {
   }
 };
 
-// @desc    Get analytics stats
-// @route   GET /api/tasks/stats/analytics
-// @access  Private
-exports.getAnalyticsStats = async (req, res, next) => {
-  try {
-    const { userId, timeRange } = req.query;
-
-    // Base query for tasks: Client tasks OR Team tasks. Exclude personal tasks entirely for analytics.
-    let taskQuery = {
-      $or: [
-        { team: { $ne: null } },
-        { client: { $ne: null } }
-      ]
-    };
-
-    // Determine Date Range
-    let startDate = new Date();
-    startDate.setHours(0, 0, 0, 0);
-    if (timeRange === 'week') {
-      startDate.setDate(startDate.getDate() - 7);
-    } else if (timeRange === 'month' || !timeRange) {
-      startDate.setMonth(startDate.getMonth() - 1);
-    } else if (timeRange === 'year') {
-      startDate.setFullYear(startDate.getFullYear() - 1);
-    }
-
-    // Role-based filtering if not admin
-    if (req.user.role !== 'admin') {
-      const teams = await TaskManagerTeam.find({ 'members.user': req.user.id, isActive: true }).select('_id');
-      const teamIds = teams.map(t => t._id);
-      taskQuery = {
-        $or: [
-          { team: { $in: teamIds } },
-          { client: { $ne: null } }
-        ]
-      };
-    }
-
-    if (req.user.role === 'admin' && userId) {
-      // User Progress Mode
-      taskQuery['timeEntries.userId'] = userId;
-      taskQuery['timeEntries.endTime'] = { $gte: startDate };
-
-      const tasks = await TaskManagerTask.find(taskQuery);
-
-      let totalTimeSpent = 0;
-      let tasksWorkedOnCount = 0;
-      let taskDetails = [];
-
-      tasks.forEach(task => {
-        let userTimeSpentOnTask = 0;
-
-        // Sum the user's explicit time entries for this specific task
-        task.timeEntries.forEach(entry => {
-          if (entry.userId && entry.userId.toString() === userId.toString() && entry.endTime >= startDate) {
-            userTimeSpentOnTask += entry.duration || 0;
-          }
-        });
-
-        if (userTimeSpentOnTask > 0) {
-          tasksWorkedOnCount++;
-          totalTimeSpent += userTimeSpentOnTask;
-
-          taskDetails.push({
-            id: task._id,
-            title: task.title,
-            status: task.status,
-            userTimeSpent: userTimeSpentOnTask,
-            isAssignedToUser: task.assignedTo && task.assignedTo.toString() === userId.toString()
-          });
-        }
-      });
-
-      return res.json({
-        success: true,
-        data: {
-          isUserProgressMode: true,
-          tasksWorkedOn: tasksWorkedOnCount,
-          totalTimeSpent: totalTimeSpent,
-          timeRange: timeRange === 'year' ? 'past year' : (timeRange === 'week' ? 'past week' : 'past month'),
-          taskDetails: taskDetails
-        }
-      });
-    }
-
-    // DEFAULT OVERVIEW MODE
-    // Filter tasks created since start date
-    taskQuery.createdAt = { $gte: startDate };
-    const tasks = await TaskManagerTask.find(taskQuery);
-
-    let statusBreakdown = { todo: 0, inProgress: 0, inReview: 0, done: 0 };
-    let priorityBreakdown = { low: 0, medium: 0, high: 0, urgent: 0 };
-    let dailyTasks = {};
-
-    tasks.forEach(task => {
-      // Status Count
-      if (task.status === 'todo') statusBreakdown.todo++;
-      else if (task.status === 'in-progress') statusBreakdown.inProgress++;
-      else if (task.status === 'in-review') statusBreakdown.inReview++;
-      else if (task.status === 'done') statusBreakdown.done++;
-
-      // Priority Count
-      if (task.priority === 'low') priorityBreakdown.low++;
-      else if (task.priority === 'medium') priorityBreakdown.medium++;
-      else if (task.priority === 'high') priorityBreakdown.high++;
-      else if (task.priority === 'urgent') priorityBreakdown.urgent++;
-
-      // Daily Tasks Generation
-      if (task.createdAt) {
-        const dateStr = task.createdAt.toISOString().split('T')[0];
-        if (!dailyTasks[dateStr]) dailyTasks[dateStr] = { total: 0, done: 0 };
-        dailyTasks[dateStr].total++;
-        if (task.status === 'done') dailyTasks[dateStr].done++;
-      }
-    });
-
-    res.json({
-      success: true,
-      data: {
-        isUserProgressMode: false,
-        statusBreakdown,
-        priorityBreakdown,
-        dailyTasks
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 // @desc    Get task activity logs
 // @route   GET /api/tasks/:id/activities
 // @access  Private

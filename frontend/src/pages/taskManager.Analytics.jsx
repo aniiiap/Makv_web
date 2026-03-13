@@ -195,6 +195,11 @@ const Analytics = () => {
               <p className="text-3xl sm:text-4xl font-bold text-blue-900">{stats.tasksWorkedOn}</p>
               <p className="text-xs text-blue-600 mt-1">In the {stats.timeRange}</p>
             </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl sm:rounded-2xl shadow-lg border border-green-200 p-4 sm:p-6">
+              <p className="text-xs sm:text-sm font-medium text-green-700 mb-1">Tasks Completed</p>
+              <p className="text-3xl sm:text-4xl font-bold text-green-900">{stats.completedTasksCount || 0}</p>
+              <p className="text-xs text-green-600 mt-1">In the {stats.timeRange}</p>
+            </div>
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl sm:rounded-2xl shadow-lg border border-purple-200 p-4 sm:p-6">
               <p className="text-xs sm:text-sm font-medium text-purple-700 mb-1">Total Time Logged</p>
               <p className="text-3xl sm:text-4xl font-bold text-purple-900">{formatTime(stats.totalTimeSpent)}</p>
@@ -290,8 +295,15 @@ const Analytics = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs sm:text-sm font-medium text-purple-700 mb-1 sm:mb-2">Tasks Completed</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-purple-900">{stats.statusBreakdown.done}</p>
-                  <p className="text-xs text-purple-600 mt-1 sm:mt-2">Finished tasks</p>
+                  <div className="flex flex-col">
+                    <p className="text-2xl sm:text-3xl font-bold text-purple-900">
+                      Total: {stats.statusBreakdown.done}
+                    </p>
+                    <p className="text-lg sm:text-xl font-semibold text-purple-700">
+                      Mine: {stats.myDoneTasksCount || 0}
+                    </p>
+                  </div>
+                  <p className="text-xs text-purple-600 mt-1">Personal contribution</p>
                 </div>
                 <div className="bg-white bg-opacity-60 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-md flex-shrink-0 ml-2">
                   <FiCheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-purple-600" />
