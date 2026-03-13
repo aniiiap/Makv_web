@@ -50,13 +50,15 @@ const Layout = ({ children }) => {
     { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText },
-    { name: 'Pay Slips', href: '/taskflow/payslips', icon: FiFileText },
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
   ];
 
   if (user?.role === 'admin') {
-    navigation.push({ name: 'Admin Dashboard', href: '/taskflow/admin/dashboard', icon: FiShield });
+    navigation.push(
+      { name: 'Pay Slips', href: '/taskflow/payslips', icon: FiFileText },
+      { name: 'Admin Dashboard', href: '/taskflow/admin/dashboard', icon: FiShield }
+    );
   }
 
   const isActive = (path) => location.pathname === path;
@@ -95,6 +97,9 @@ const Layout = ({ children }) => {
                     resumeLocalTimer();
                   } catch (error) {
                     console.error('Failed to resume timer:', error);
+                    if (error.response?.status === 400) {
+                      stopTimer(); // Clear corrupted local timer state
+                    }
                   }
                 }}
                 className="p-1.5 bg-green-100 text-green-600 rounded hover:bg-green-200 transition-colors"
@@ -111,6 +116,9 @@ const Layout = ({ children }) => {
                     pauseLocalTimer();
                   } catch (error) {
                     console.error('Failed to pause timer:', error);
+                    if (error.response?.status === 400) {
+                      stopTimer(); // Clear corrupted local timer state
+                    }
                   }
                 }}
                 className="p-1.5 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200 transition-colors"

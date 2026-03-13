@@ -140,11 +140,15 @@ exports.deleteTeam = async (req, res, next) => {
       });
     }
 
-    // Only owner can delete
-    if (team.owner.toString() !== req.user.id.toString()) {
+    // Check if user is owner
+    const member = team.members.find(
+      (m) => m.user.toString() === req.user.id.toString()
+    );
+
+    if (!member || member.role !== 'owner') {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete this team',
+        message: 'Only team owners can delete this team',
       });
     }
 
@@ -497,12 +501,20 @@ exports.removeMember = async (req, res, next) => {
       });
     }
 
-    // Can't remove owner
-    if (req.params.memberId === team.owner.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot remove team owner',
-      });
+    // Can't remove an owner unless you are also an owner and there's at least one other owner
+    const memberToRemove = team.members.find(
+      (m) => m.user.toString() === req.params.memberId
+    );
+
+    if (memberToRemove && memberToRemove.role === 'owner') {
+      // Check how many owners are left
+      const ownerCount = team.members.filter((m) => m.role === 'owner').length;
+      if (ownerCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot remove the only team owner',
+        });
+      }
     }
 
     team.members = team.members.filter(
@@ -674,34 +686,52 @@ exports.updateMemberRole = async (req, res, next) => {
       });
     }
 
-    // Only owner can update roles
-    if (team.owner.toString() !== req.user.id.toString()) {
+    // Check if current user is owner
+    const currentUserMember = team.members.find(
+      (m) => m.user.toString() === req.user.id.toString()
+    );
+
+    if (!currentUserMember || currentUserMember.role !== 'owner') {
       return res.status(403).json({
         success: false,
-        message: 'Only team owner can update member roles',
+        message: 'Only team owners can update member roles',
       });
     }
 
-    // Can't change owner role
-    if (req.params.memberId === team.owner.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot change owner role',
-      });
-    }
-
-    const member = team.members.find(
+    const memberToUpdate = team.members.find(
       (m) => m.user.toString() === req.params.memberId
     );
 
-    if (!member) {
+    if (!memberToUpdate) {
       return res.status(404).json({
         success: false,
         message: 'Member not found',
       });
     }
 
-    member.role = role;
+    // Role specific logic
+    if (role === 'owner') {
+      // Only admins can be promoted to owner
+      if (memberToUpdate.role !== 'admin') {
+        return res.status(400).json({
+          success: false,
+          message: 'Only team admins can be promoted to owners',
+        });
+      }
+    }
+
+    // If demoting an owner, ensure they aren't the last one
+    if (memberToUpdate.role === 'owner' && role !== 'owner') {
+      const ownerCount = team.members.filter((m) => m.role === 'owner').length;
+      if (ownerCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot demote the only team owner',
+        });
+      }
+    }
+
+    memberToUpdate.role = role;
     await team.save();
 
     const populatedTeam = await TaskManagerTeam.findById(team._id)

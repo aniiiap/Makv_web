@@ -47,13 +47,17 @@ const Tasks = ({ openCreate = false }) => {
   const [isSavingTask, setIsSavingTask] = useState(false);
   const { isDark } = useTheme();
   const [filters, setFilters] = useState(() => {
-    // Load team filter from localStorage, others from URL params
+    // Parse URL on initial load to avoid race condition
+    const params = new URLSearchParams(window.location.search);
     const teamFilter = localStorage.getItem('teamFilter') || '';
     return {
       team: teamFilter,
-      status: '',
-      assignedTo: '',
-      priority: '',
+      status: params.get('status') || '',
+      assignedTo: params.get('assignedTo') || '',
+      priority: params.get('priority') || '',
+      overdue: params.get('overdue') || '',
+      dueSoon: params.get('dueSoon') || '',
+      createdBy: params.get('createdBy') || '',
     };
   });
   const [searchText, setSearchText] = useState('');
@@ -73,34 +77,42 @@ const Tasks = ({ openCreate = false }) => {
     isBillable: false,
   });
 
+  // 1. Fetch teams once on mount or when user changes
   useEffect(() => {
     fetchTeams();
+  }, [user]);
+
+  // 2. Sync filters from URL searchParams
+  useEffect(() => {
     const status = searchParams.get('status');
     const assignedTo = searchParams.get('assignedTo');
     const priority = searchParams.get('priority');
+    const overdue = searchParams.get('overdue');
+    const dueSoon = searchParams.get('dueSoon');
+    const createdBy = searchParams.get('createdBy');
     const teamFilter = localStorage.getItem('teamFilter') || '';
-    if (status || assignedTo || priority) {
-      setFilters({
-        team: teamFilter,
-        status: status || '',
-        assignedTo: assignedTo || '',
-        priority: priority || '',
-      });
-    } else {
-      // Sync team filter from localStorage
-      setFilters(prev => {
-        if (prev.team !== teamFilter) {
-          return { ...prev, team: teamFilter };
-        }
-        return prev;
-      });
-    }
+
+    setFilters(prev => ({
+      ...prev,
+      team: teamFilter,
+      status: status || '',
+      assignedTo: assignedTo || '',
+      priority: priority || '',
+      overdue: overdue || '',
+      dueSoon: dueSoon || '',
+      createdBy: createdBy || '',
+    }));
   }, [searchParams]);
 
+  // 3. Fetch tasks when filters or teams (once loaded) change
   useEffect(() => {
-    fetchTasks();
+    // Only fetch if teams are loaded OR if we are showing personal tasks (team filter is personal or empty)
+    // This prevents double fetching on initial load
+    if (teams.length > 0 || !filters.team || filters.team === 'personal') {
+      fetchTasks();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, teams.length > 0]);
 
   // Listen for filter changes and refresh triggers from notifications or other components
   useEffect(() => {
@@ -115,41 +127,9 @@ const Tasks = ({ openCreate = false }) => {
     };
 
     const handleRefreshTasks = () => {
-      // Force refresh tasks when notification is clicked
-      // This ensures we get the latest task data after updates
-      // Read current filters from localStorage and state
-      const teamFilter = localStorage.getItem('teamFilter') || '';
-
-      // Fetch tasks with current filters
-      const refreshTasks = async () => {
-        try {
-          setLoading(true);
-          const params = {};
-          if (teamFilter) params.team = teamFilter;
-          if (filters.status) params.status = filters.status;
-          if (filters.priority) params.priority = filters.priority;
-          if (filters.searchQuery) params.searchQuery = filters.searchQuery;
-          if (filters.assignedTo === 'me') {
-            const userData = JSON.parse(localStorage.getItem('user') || '{}');
-            if (userData.id) {
-              params.assignedTo = userData.id;
-            }
-          } else if (filters.assignedTo) {
-            params.assignedTo = filters.assignedTo;
-          }
-
-          const response = await api.get('/tasks', { params });
-          setTasks(response.data || []);
-        } catch (error) {
-          console.error('Error fetching tasks:', error);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      // Small delay to ensure any filter updates are processed first
+      // Small delay to ensure any state updates are processed first
       setTimeout(() => {
-        refreshTasks();
+        fetchTasks();
       }, 200);
     };
 
@@ -180,7 +160,7 @@ const Tasks = ({ openCreate = false }) => {
       window.removeEventListener('storage', handleFilterChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [filters]);
+  }, [filters, user, teams]);
 
   const fetchTeams = async () => {
     try {
@@ -198,10 +178,24 @@ const Tasks = ({ openCreate = false }) => {
       if (filters.team) params.team = filters.team;
       if (filters.status) params.status = filters.status;
       if (filters.priority) params.priority = filters.priority;
-      if (filters.assignedTo === 'me') {
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        if (userData.id) {
-          params.assignedTo = userData.id;
+      if (filters.overdue) params.overdue = filters.overdue;
+      if (filters.dueSoon) params.dueSoon = filters.dueSoon;
+      if (filters.createdBy) params.createdBy = filters.createdBy;
+
+      const filteredTeam = teams.find(t => t._id === filters.team);
+      const memberInFilteredTeam = filteredTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
+      const isFilteredTeamAdminOrOwner = ['admin', 'owner'].includes(memberInFilteredTeam?.role);
+      const isGlobalAdmin = user?.role === 'admin';
+      
+      const isAnyTeamAdmin = teams.some(t => t.members.some(m => ((m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id) && ['admin', 'owner'].includes(m.role)));
+      const userHasFullVisibility = isGlobalAdmin || isFilteredTeamAdminOrOwner || (filters.team ? isFilteredTeamAdminOrOwner : isAnyTeamAdmin);
+
+      if (!userHasFullVisibility) {
+        params.assignedTo = user?._id || user?.id;
+      } else if (filters.assignedTo === 'me') {
+        const userId = user?._id || user?.id;
+        if (userId) {
+          params.assignedTo = userId;
         }
       } else if (filters.assignedTo) {
         params.assignedTo = filters.assignedTo;
@@ -320,11 +314,17 @@ const Tasks = ({ openCreate = false }) => {
       const response = await api.get(`/tasks/${task._id}`);
       setCurrentTaskDetails(response.data);
 
-      // Check if timer is running - Sync with global context if needed
+      // Check if timer is running and it belongs to the current user
       if (response.data.activeTimer) {
-        // If context is empty or different, sync it
-        if (!timerActiveTask || timerActiveTask._id !== response.data._id) {
-          syncTimer(response.data, response.data.activeTimer);
+        // If the timer user is populated object, compare ._id. If string, compare directly.
+        const timerUserId = response.data.activeTimer.user?._id || response.data.activeTimer.user;
+        const currentUserId = user?._id || user?.id;
+
+        if (timerUserId === currentUserId) {
+          // If context is empty or different, sync it
+          if (!timerActiveTask || timerActiveTask._id !== response.data._id) {
+            syncTimer(response.data, response.data.activeTimer);
+          }
         }
       }
 
@@ -602,7 +602,6 @@ const Tasks = ({ openCreate = false }) => {
       if (!canEditSensitive && editingTask) {
         delete taskData.priority;
         delete taskData.dueDate;
-        delete taskData.assignedTo;
         delete taskData.team;
       }
 
@@ -712,11 +711,26 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   // Permission Logic Calculation
+  const hasFullVisibility = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    
+    // Check if admin of currently selected team
+    if (filters.team && filters.team !== 'personal') {
+      const filteredTeam = teams.find(t => t._id === filters.team);
+      const memberInFilteredTeam = filteredTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
+      if (['admin', 'owner'].includes(memberInFilteredTeam?.role)) return true;
+    }
+    
+    // Also check if admin of ANY team to allow global filtering
+    return teams.some(t => t.members.some(m => ((m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id) && ['admin', 'owner'].includes(m.role)));
+  }, [user, filters.team, teams]);
+
+  // Modal Permission Logic
   const currentTeam = teams.find(t => t._id === newTask.team);
-  // Note: user.id might be undefined initially, handle gracefully
-  const currentUserMember = currentTeam?.members?.find(m => m.user?._id === user?.id);
-  const userRole = currentUserMember?.role || 'member';
-  const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRole);
+  const currentUserMember = currentTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
+  const userRoleInTeam = currentUserMember?.role || 'member';
+  const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRoleInTeam) || user?.role === 'admin';
   const isPersonalTask = !newTask.team;
   const canEditSensitive = !editingTask || isPersonalTask || isTeamAdminOrOwner;
 
@@ -899,21 +913,23 @@ const Tasks = ({ openCreate = false }) => {
               <option value="urgent">Urgent</option>
             </select>
           </div>
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Assigned To
-            </label>
-            <select
-              value={filters.assignedTo}
-              onChange={(e) =>
-                setFilters({ ...filters, assignedTo: e.target.value })
-              }
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
-            >
-              <option value="">All Assignees</option>
-              <option value="me">Assigned to Me</option>
-            </select>
-          </div>
+          {hasFullVisibility && (
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Assigned To
+              </label>
+              <select
+                value={filters.assignedTo}
+                onChange={(e) =>
+                  setFilters({ ...filters, assignedTo: e.target.value })
+                }
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+              >
+                <option value="">All Assignees</option>
+                <option value="me">Assigned to Me</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1228,7 +1244,6 @@ const Tasks = ({ openCreate = false }) => {
                       onChange={(e) =>
                         setNewTask({ ...newTask, assignedTo: e.target.value })
                       }
-                      disabled={!canEditSensitive}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} disabled:cursor-not-allowed`}
                     >
                       <option value="">Unassigned</option>

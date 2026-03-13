@@ -135,9 +135,10 @@ const Teams = () => {
       fetchTeams();
       alert('Member removed successfully!');
     } catch (error) {
-      alert(error.message || 'Failed to remove member');
+      alert(error.response?.data?.message || error.message || 'Failed to remove member');
     }
   };
+
 
   const getUserRole = (team) => {
     const member = team.members?.find((m) => m.user?._id === user.id);

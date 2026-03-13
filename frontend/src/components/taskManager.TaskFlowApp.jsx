@@ -6,6 +6,7 @@ import { SocketProvider } from '../context/taskManager.SocketContext';
 import { TimerProvider } from '../context/taskManager.TimerContext';
 import Layout from './taskManager.Layout';
 import PrivateRoute from './taskManager.PrivateRoute';
+import AdminRoute from './taskManager.AdminRoute';
 import TaskManagerLogin from '../pages/taskManager.Login';
 import TaskManagerRegister from '../pages/taskManager.Register';
 import TaskManagerDashboard from '../pages/taskManager.Dashboard';
@@ -112,11 +113,11 @@ function TaskFlowApp() {
                   </PrivateRoute>
                 } />
                 <Route path="payslips" element={
-                  <PrivateRoute>
+                  <AdminRoute>
                     <Layout>
                       <PaySlipList />
                     </Layout>
-                  </PrivateRoute>
+                  </AdminRoute>
                 } />
                 <Route path="bills/create" element={
                   <PrivateRoute>
@@ -145,11 +146,11 @@ function TaskFlowApp() {
                   </PrivateRoute>
                 } />
                 <Route path="admin/payslip" element={
-                  <PrivateRoute>
+                  <AdminRoute>
                     <Layout>
                       <PaySlipGenerator />
                     </Layout>
-                  </PrivateRoute>
+                  </AdminRoute>
                 } />
 
                 <Route path="*" element={<Navigate to="/taskflow/login" replace />} />

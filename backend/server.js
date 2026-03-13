@@ -27,32 +27,35 @@ if (isDevelopment) {
   // Get from environment variable (comma-separated for multiple domains)
   const productionOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-    : ['https://www.makv.in', 'https://makv.in'];
+    : [];
 
+  // Always include standard production domains to be safe
+  const mandatoryOrigins = ['https://www.makv.in', 'https://makv.in'];
+  
   allowedOrigins.push(...productionOrigins);
-}
-
-// Log allowed origins in development for debugging
-if (isDevelopment) {
-  console.log('CORS allowed origins:', allowedOrigins);
+  mandatoryOrigins.forEach(origin => {
+    if (!allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
+  });
 }
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       // Log blocked origins for security monitoring
       console.warn('CORS blocked origin:', origin, '| Allowed:', allowedOrigins);
-      callback(new Error('Not allowed by CORS'));
+      // Return false instead of an error to let cors middleware handle it gracefully
+      callback(null, false);
     }
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));

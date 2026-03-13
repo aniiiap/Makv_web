@@ -13,10 +13,12 @@ export const useTimer = () => {
 
 export const TimerProvider = ({ children }) => {
     // Timer state
-    const [activeTask, setActiveTask] = useState(null); // The task object being timed
+    const [activeTask, setActiveTask] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [startTime, setStartTime] = useState(null);
+    const [lastResumedAt, setLastResumedAt] = useState(null);
+    const [accumulatedTime, setAccumulatedTime] = useState(0); // In seconds
     const [elapsedTime, setElapsedTime] = useState(0); // In seconds
 
     const timerIntervalRef = useRef(null);
@@ -32,14 +34,17 @@ export const TimerProvider = ({ children }) => {
                     setIsRunning(parsedState.isRunning);
                     setIsPaused(parsedState.isPaused || false);
                     setStartTime(parsedState.startTime);
+                    setLastResumedAt(parsedState.lastResumedAt || parsedState.startTime);
+                    setAccumulatedTime(parsedState.accumulatedTime || 0);
 
-                    // Calculate elapsed time correctly if it was running and not paused
-                    if (parsedState.isRunning && !parsedState.isPaused && parsedState.startTime) {
+                    // Initial calculation of elapsed time
+                    if (parsedState.isRunning && !parsedState.isPaused && (parsedState.lastResumedAt || parsedState.startTime)) {
                         const now = Date.now();
-                        const additionalElapsed = Math.floor((now - parsedState.lastTick) / 1000);
-                        setElapsedTime(parsedState.elapsedTime + additionalElapsed);
+                        const start = parsedState.lastResumedAt || parsedState.startTime;
+                        const additionalElapsed = Math.floor((now - start) / 1000);
+                        setElapsedTime((parsedState.accumulatedTime || 0) + (additionalElapsed > 0 ? additionalElapsed : 0));
                     } else {
-                        setElapsedTime(parsedState.elapsedTime);
+                        setElapsedTime(parsedState.accumulatedTime || 0);
                     }
                 }
             } catch (error) {
@@ -48,24 +53,35 @@ export const TimerProvider = ({ children }) => {
         }
     }, []);
 
-    // Save state to localStorage whenever it changes
+    // Save state to localStorage whenever critical state changes
     useEffect(() => {
+        if (!activeTask) return;
         const stateToSave = {
             activeTask,
             isRunning,
             isPaused,
             startTime,
-            elapsedTime,
+            lastResumedAt,
+            accumulatedTime,
             lastTick: Date.now()
         };
         localStorage.setItem('taskManager_timerState', JSON.stringify(stateToSave));
-    }, [activeTask, isRunning, isPaused, startTime, elapsedTime]);
+    }, [activeTask, isRunning, isPaused, startTime, lastResumedAt, accumulatedTime]);
 
     // Timer tick logic
     useEffect(() => {
-        if (isRunning && !isPaused) {
+        if (isRunning && !isPaused && (lastResumedAt || startTime)) {
+            const start = lastResumedAt || startTime;
+            
+            // Sync immediately on setup
+            const initialNow = Date.now();
+            const initialDiff = Math.floor((initialNow - start) / 1000);
+            setElapsedTime(accumulatedTime + (initialDiff > 0 ? initialDiff : 0));
+
             timerIntervalRef.current = setInterval(() => {
-                setElapsedTime(prev => prev + 1);
+                const now = Date.now();
+                const diff = Math.floor((now - start) / 1000);
+                setElapsedTime(accumulatedTime + (diff > 0 ? diff : 0));
             }, 1000);
         } else {
             if (timerIntervalRef.current) {
@@ -78,18 +94,23 @@ export const TimerProvider = ({ children }) => {
                 clearInterval(timerIntervalRef.current);
             }
         };
-    }, [isRunning, isPaused]);
+    }, [isRunning, isPaused, lastResumedAt, startTime, accumulatedTime]);
 
     const startTimer = (task) => {
-        // If another task is already running, stop it first or warn
         if (activeTask && activeTask._id !== task._id) {
             stopTimer();
         }
 
+        const now = Date.now();
         if (!activeTask || activeTask._id !== task._id) {
             setActiveTask(task);
+            setStartTime(now);
+            setLastResumedAt(now);
+            setAccumulatedTime(0);
             setElapsedTime(0);
-            setStartTime(Date.now());
+        } else {
+            // If resuming same task
+            setLastResumedAt(now);
         }
 
         setIsRunning(true);
@@ -103,6 +124,8 @@ export const TimerProvider = ({ children }) => {
         setActiveTask(null);
         setElapsedTime(0);
         setStartTime(null);
+        setLastResumedAt(null);
+        setAccumulatedTime(0);
         localStorage.removeItem('taskManager_timerState');
     };
 
@@ -111,11 +134,20 @@ export const TimerProvider = ({ children }) => {
     };
 
     const pauseLocalTimer = () => {
-        setIsPaused(true);
+        if (isRunning && !isPaused) {
+            const now = Date.now();
+            const start = lastResumedAt || startTime;
+            const diff = Math.floor((now - start) / 1000);
+            setAccumulatedTime(prev => prev + (diff > 0 ? diff : 0));
+            setIsPaused(true);
+        }
     };
 
     const resumeLocalTimer = () => {
-        setIsPaused(false);
+        if (isRunning && isPaused) {
+            setLastResumedAt(Date.now());
+            setIsPaused(false);
+        }
     };
 
     const syncTimer = (task, timerData) => {
@@ -124,16 +156,18 @@ export const TimerProvider = ({ children }) => {
         setActiveTask(task);
         setIsRunning(true);
         setIsPaused(timerData.isPaused || false);
-        setStartTime(timerData.startTime);
+        setStartTime(new Date(timerData.startTime).getTime());
+        setLastResumedAt(timerData.lastResumedAt ? new Date(timerData.lastResumedAt).getTime() : new Date(timerData.startTime).getTime());
+        setAccumulatedTime(timerData.accumulatedTime || 0);
 
+        // Initial calculation
         if (timerData.isPaused) {
             setElapsedTime(timerData.accumulatedTime || 0);
         } else {
             const start = new Date(timerData.lastResumedAt || timerData.startTime).getTime();
             const now = Date.now();
-            const elapsed = Math.floor((now - start) / 1000);
-            const totalElapsed = (timerData.accumulatedTime || 0) + (elapsed >= 0 ? elapsed : 0);
-            setElapsedTime(totalElapsed);
+            const diff = Math.floor((now - start) / 1000);
+            setElapsedTime((timerData.accumulatedTime || 0) + (diff > 0 ? diff : 0));
         }
     };
 

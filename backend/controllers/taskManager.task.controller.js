@@ -109,6 +109,55 @@ exports.getTasks = async (req, res, next) => {
       }
     }
 
+    // Filter by overdue
+    if (req.query.overdue === 'true') {
+      const condition = {
+        dueDate: { $lt: new Date() },
+        status: { $ne: 'done' }
+      };
+      if (query.$and) {
+        query.$and.push(condition);
+      } else if (query.$or) {
+        // Wrap existing $or and new condition in $and
+        query.$and = [{ $or: query.$or }, condition];
+        delete query.$or;
+      } else {
+        Object.assign(query, condition);
+      }
+    }
+
+    // Filter by due soon (next 48 hours)
+    if (req.query.dueSoon === 'true') {
+      const now = new Date();
+      const soon = new Date();
+      soon.setHours(soon.getHours() + 48);
+      const condition = {
+        dueDate: { $gte: now, $lte: soon },
+        status: { $ne: 'done' }
+      };
+      if (query.$and) {
+        query.$and.push(condition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, condition];
+        delete query.$or;
+      } else {
+        Object.assign(query, condition);
+      }
+    }
+
+    // Filter by createdBy
+    if (req.query.createdBy === 'me') {
+      const condition = { createdBy: req.user.id };
+      if (query.$and) {
+        query.$and.push(condition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, condition];
+        delete query.$or;
+      } else {
+        Object.assign(query, condition);
+      }
+    }
+
     // Filter by search query (Title or Description)
     if (searchQuery && searchQuery.trim() !== '') {
       const searchRegex = { $regex: searchQuery, $options: 'i' };
@@ -128,6 +177,34 @@ exports.getTasks = async (req, res, next) => {
         delete query.$or;
       } else {
         query.$or = searchCondition.$or;
+      }
+    }
+
+    // Feature 2: Task Visibility on Review
+    // When a task is 'in-review', it should only be visible to the reviewer (the person it is currently assignedTo)
+    // admin, and the creator. Other team members cannot see it while it's in review.
+    if (req.user.role !== 'admin') {
+      const reviewCondition = {
+        $nor: [
+          {
+            $and: [
+              { status: 'in-review' },
+              { assignedTo: { $ne: req.user.id } }
+            ]
+          }
+        ]
+      };
+
+      if (query.$and) {
+        query.$and.push(reviewCondition);
+      } else {
+        query.$and = [reviewCondition];
+
+        // If we also had an $or, we must move it inside $and to not overwrite each other
+        if (query.$or) {
+          query.$and.push({ $or: query.$or });
+          delete query.$or;
+        }
       }
     }
 
@@ -400,12 +477,7 @@ exports.updateTask = async (req, res, next) => {
             message: 'Only Team Admins can update Priority',
           });
         }
-        if (req.body.assignedTo && req.body.assignedTo !== task.assignedTo?.toString()) {
-          return res.status(403).json({
-            success: false,
-            message: 'Only Team Admins can reassign tasks',
-          });
-        }
+        // Removed assignedTo restriction: any user can reassign a task
       }
     } else if (task.client) {
       // Client task - no team restrictions or personal task restrictions.
@@ -784,6 +856,72 @@ exports.addComment = async (req, res, next) => {
 // @access  Private
 exports.getAnalyticsStats = async (req, res, next) => {
   try {
+    const { userId, timeRange } = req.query;
+
+    let taskQuery = {};
+
+    // Feature 1: Admin User Progress Analytics
+    if (req.user.role === 'admin' && userId) {
+      // Create date filter based on timeRange
+      const dateFilter = new Date();
+      if (timeRange === 'week') {
+        dateFilter.setDate(dateFilter.getDate() - 7);
+      } else if (timeRange === 'year') {
+        dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+      } else {
+        // Default to month (30 days)
+        dateFilter.setDate(dateFilter.getDate() - 30);
+      }
+
+      // 1. Must be a Team or Client task (No personal tasks: team != null OR client != null)
+      // 2. User must have either been assigned to it OR logged time on it
+      // 3. Must fall within the timeRange
+      taskQuery = {
+        $and: [
+          { $or: [{ team: { $ne: null } }, { client: { $ne: null } }] },
+          { $or: [{ assignedTo: userId }, { 'timeEntries.userId': userId }] },
+          { updatedAt: { $gte: dateFilter } } // Using updatedAt to catch tasks worked on recently
+        ]
+      };
+
+      const tasks = await TaskManagerTask.find(taskQuery).select('title status timeEntries assignedTo');
+
+      let totalTimeSpent = 0;
+      let tasksWorkedOn = tasks.length;
+      let userTaskDetails = [];
+
+      tasks.forEach(task => {
+        // Calculate only the chosen user's time on this task
+        const userTimeEntries = task.timeEntries.filter(
+          entry => entry.userId && entry.userId.toString() === userId.toString()
+        );
+        const userTimeOnTask = userTimeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+
+        totalTimeSpent += userTimeOnTask;
+
+        userTaskDetails.push({
+          id: task._id,
+          title: task.title,
+          status: task.status,
+          userTimeSpent: userTimeOnTask,
+          isAssignedToUser: task.assignedTo && task.assignedTo.toString() === userId.toString()
+        });
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          isUserProgressMode: true,
+          userId,
+          timeRange: timeRange || 'month',
+          tasksWorkedOn,
+          totalTimeSpent, // in seconds
+          taskDetails: userTaskDetails,
+        }
+      });
+    }
+
+    // Default Analytics Logic (for normal users or admin overview)
     // Get all teams user is member of
     const teams = await TaskManagerTeam.find({
       'members.user': req.user.id,
@@ -793,7 +931,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
     const teamIds = teams.map((t) => t._id);
 
     // Query for both team tasks and personal tasks
-    const taskQuery = {
+    taskQuery = {
       $or: [
         { team: { $in: teamIds } },
         { team: null, createdBy: req.user.id }
@@ -908,6 +1046,29 @@ exports.getDashboardStats = async (req, res, next) => {
       };
     }
 
+    if (req.user.role !== 'admin') {
+      // Feature 2: Task Visibility on Review
+      // When a task is 'in-review', it should only be visible to the reviewer (assignedTo) 
+      // or the creator of the task.
+      const reviewCondition = {
+        $nor: [
+          {
+            $and: [
+              { status: 'in-review' },
+              { assignedTo: { $ne: req.user.id } }
+            ]
+          }
+        ]
+      };
+
+      taskQuery = {
+        $and: [
+          taskQuery,
+          reviewCondition
+        ]
+      };
+    }
+
     // Get task counts
     const totalTasks = await TaskManagerTask.countDocuments(taskQuery);
     const todoTasks = await TaskManagerTask.countDocuments({
@@ -924,42 +1085,16 @@ exports.getDashboardStats = async (req, res, next) => {
     });
 
     // Get my assigned tasks
-    let myTasksQuery = { assignedTo: req.user.id };
-    if (team) {
-      if (team === 'personal') {
-        myTasksQuery = { ...myTasksQuery, team: null };
-      } else {
-        myTasksQuery = { ...myTasksQuery, team: team };
-      }
-    } else {
-      myTasksQuery = {
-        ...myTasksQuery,
-        $or: [
-          { team: { $in: teamIds } },
-          { team: null }
-        ]
-      };
-    }
-    const myTasks = await TaskManagerTask.countDocuments(myTasksQuery);
+    const myTasks = await TaskManagerTask.countDocuments({
+      ...taskQuery,
+      assignedTo: req.user.id
+    });
 
     // Get tasks created by me
-    let createdByMeQuery = { createdBy: req.user.id };
-    if (team) {
-      if (team === 'personal') {
-        createdByMeQuery = { ...createdByMeQuery, team: null };
-      } else {
-        createdByMeQuery = { ...createdByMeQuery, team: team };
-      }
-    } else {
-      createdByMeQuery = {
-        ...createdByMeQuery,
-        $or: [
-          { team: { $in: teamIds } },
-          { team: null }
-        ]
-      };
-    }
-    const createdByMe = await TaskManagerTask.countDocuments(createdByMeQuery);
+    const createdByMe = await TaskManagerTask.countDocuments({
+      ...taskQuery,
+      createdBy: req.user.id
+    });
 
     // Get overdue tasks
     const overdueTasks = await TaskManagerTask.countDocuments({
@@ -996,6 +1131,135 @@ exports.getDashboardStats = async (req, res, next) => {
   }
 };
 
+// @desc    Get analytics stats
+// @route   GET /api/tasks/stats/analytics
+// @access  Private
+exports.getAnalyticsStats = async (req, res, next) => {
+  try {
+    const { userId, timeRange } = req.query;
+
+    // Base query for tasks: Client tasks OR Team tasks. Exclude personal tasks entirely for analytics.
+    let taskQuery = {
+      $or: [
+        { team: { $ne: null } },
+        { client: { $ne: null } }
+      ]
+    };
+
+    // Determine Date Range
+    let startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    if (timeRange === 'week') {
+      startDate.setDate(startDate.getDate() - 7);
+    } else if (timeRange === 'month' || !timeRange) {
+      startDate.setMonth(startDate.getMonth() - 1);
+    } else if (timeRange === 'year') {
+      startDate.setFullYear(startDate.getFullYear() - 1);
+    }
+
+    // Role-based filtering if not admin
+    if (req.user.role !== 'admin') {
+      const teams = await TaskManagerTeam.find({ 'members.user': req.user.id, isActive: true }).select('_id');
+      const teamIds = teams.map(t => t._id);
+      taskQuery = {
+        $or: [
+          { team: { $in: teamIds } },
+          { client: { $ne: null } }
+        ]
+      };
+    }
+
+    if (req.user.role === 'admin' && userId) {
+      // User Progress Mode
+      taskQuery['timeEntries.userId'] = userId;
+      taskQuery['timeEntries.endTime'] = { $gte: startDate };
+
+      const tasks = await TaskManagerTask.find(taskQuery);
+
+      let totalTimeSpent = 0;
+      let tasksWorkedOnCount = 0;
+      let taskDetails = [];
+
+      tasks.forEach(task => {
+        let userTimeSpentOnTask = 0;
+
+        // Sum the user's explicit time entries for this specific task
+        task.timeEntries.forEach(entry => {
+          if (entry.userId && entry.userId.toString() === userId.toString() && entry.endTime >= startDate) {
+            userTimeSpentOnTask += entry.duration || 0;
+          }
+        });
+
+        if (userTimeSpentOnTask > 0) {
+          tasksWorkedOnCount++;
+          totalTimeSpent += userTimeSpentOnTask;
+
+          taskDetails.push({
+            id: task._id,
+            title: task.title,
+            status: task.status,
+            userTimeSpent: userTimeSpentOnTask,
+            isAssignedToUser: task.assignedTo && task.assignedTo.toString() === userId.toString()
+          });
+        }
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          isUserProgressMode: true,
+          tasksWorkedOn: tasksWorkedOnCount,
+          totalTimeSpent: totalTimeSpent,
+          timeRange: timeRange === 'year' ? 'past year' : (timeRange === 'week' ? 'past week' : 'past month'),
+          taskDetails: taskDetails
+        }
+      });
+    }
+
+    // DEFAULT OVERVIEW MODE
+    // Filter tasks created since start date
+    taskQuery.createdAt = { $gte: startDate };
+    const tasks = await TaskManagerTask.find(taskQuery);
+
+    let statusBreakdown = { todo: 0, inProgress: 0, inReview: 0, done: 0 };
+    let priorityBreakdown = { low: 0, medium: 0, high: 0, urgent: 0 };
+    let dailyTasks = {};
+
+    tasks.forEach(task => {
+      // Status Count
+      if (task.status === 'todo') statusBreakdown.todo++;
+      else if (task.status === 'in-progress') statusBreakdown.inProgress++;
+      else if (task.status === 'in-review') statusBreakdown.inReview++;
+      else if (task.status === 'done') statusBreakdown.done++;
+
+      // Priority Count
+      if (task.priority === 'low') priorityBreakdown.low++;
+      else if (task.priority === 'medium') priorityBreakdown.medium++;
+      else if (task.priority === 'high') priorityBreakdown.high++;
+      else if (task.priority === 'urgent') priorityBreakdown.urgent++;
+
+      // Daily Tasks Generation
+      if (task.createdAt) {
+        const dateStr = task.createdAt.toISOString().split('T')[0];
+        if (!dailyTasks[dateStr]) dailyTasks[dateStr] = { total: 0, done: 0 };
+        dailyTasks[dateStr].total++;
+        if (task.status === 'done') dailyTasks[dateStr].done++;
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        isUserProgressMode: false,
+        statusBreakdown,
+        priorityBreakdown,
+        dailyTasks
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 // @desc    Get task activity logs
 // @route   GET /api/tasks/:id/activities
 // @access  Private
@@ -1396,7 +1660,15 @@ exports.stopTimer = async (req, res, next) => {
       });
     }
 
-    if (!task.activeTimer || task.activeTimer.userId.toString() !== req.user.id.toString()) {
+    if (!task.activeTimer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active timer found',
+      });
+    }
+
+    const timerUserId = task.activeTimer.userId || task.activeTimer.user;
+    if (!timerUserId || timerUserId.toString() !== req.user.id.toString()) {
       return res.status(400).json({
         success: false,
         message: 'No active timer found for this user',
@@ -1469,7 +1741,12 @@ exports.pauseTimer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    if (!task.activeTimer || task.activeTimer.userId.toString() !== req.user.id.toString()) {
+    if (!task.activeTimer) {
+      return res.status(400).json({ success: false, message: 'No active timer found' });
+    }
+
+    const timerUserId = task.activeTimer.userId || task.activeTimer.user;
+    if (!timerUserId || timerUserId.toString() !== req.user.id.toString()) {
       return res.status(400).json({ success: false, message: 'No active timer found for this user' });
     }
 
@@ -1511,7 +1788,12 @@ exports.resumeTimer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    if (!task.activeTimer || task.activeTimer.userId.toString() !== req.user.id.toString()) {
+    if (!task.activeTimer) {
+      return res.status(400).json({ success: false, message: 'No active timer found' });
+    }
+
+    const timerUserId = task.activeTimer.userId || task.activeTimer.user;
+    if (!timerUserId || timerUserId.toString() !== req.user.id.toString()) {
       return res.status(400).json({ success: false, message: 'No active timer found for this user' });
     }
 

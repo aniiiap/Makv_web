@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const billController = require('../controllers/billController');
-const auth = require('../middleware/taskManager.auth').protect;
+const { protect, authorizeRoles } = require('../middleware/taskManager.auth');
 
-router.post('/', auth, billController.createBill);
-router.post('/huf', auth, billController.createHUFBill);
-router.post('/payslip', auth, billController.createPaySlip);
-router.get('/', auth, billController.getBills);
-router.get('/payslips', auth, billController.getPaySlips);
-router.get('/clients', auth, billController.getClientsForBilling);
+router.post('/', protect, billController.createBill);
+router.post('/huf', protect, billController.createHUFBill);
+router.post('/payslip', protect, authorizeRoles('admin'), billController.createPaySlip);
+router.get('/', protect, billController.getBills);
+router.get('/payslips', protect, authorizeRoles('admin'), billController.getPaySlips);
+router.get('/clients', protect, billController.getClientsForBilling);
 
 module.exports = router;
