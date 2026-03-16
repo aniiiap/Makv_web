@@ -14,6 +14,7 @@ import TaskManagerTasks from '../pages/taskManager.Tasks';
 import TaskManagerTeams from '../pages/taskManager.Teams';
 import TaskManagerCalendar from '../pages/taskManager.Calendar';
 import TaskManagerAnalytics from '../pages/taskManager.Analytics';
+import TaskManagerCompletedTasks from '../pages/taskManager.CompletedTasks';
 import BillList from '../pages/taskManager.BillList';
 import BillGenerator from '../pages/taskManager.BillGenerator';
 import HUFBillGenerator from '../pages/taskManager.HUFBillGenerator';
@@ -67,6 +68,13 @@ function TaskFlowApp() {
                   <PrivateRoute>
                     <Layout>
                       <TaskManagerTasks />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="tasks/completed" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <TaskManagerCompletedTasks />
                     </Layout>
                   </PrivateRoute>
                 } />

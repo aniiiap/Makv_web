@@ -9,7 +9,7 @@ import {
   FiPlus, FiFilter, FiList, FiGrid, FiFolder, FiUser, FiUsers,
   FiCalendar, FiTag, FiEdit2, FiX, FiCheckCircle, FiClock,
   FiActivity, FiCheckSquare, FiPlay, FiPause, FiSquare, FiTrash2, FiDollarSign,
-  FiDownload, FiSearch
+  FiDownload, FiSearch, FiPaperclip, FiImage, FiUploadCloud, FiEye, FiFile, FiFileText
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
@@ -176,11 +176,14 @@ const Tasks = ({ openCreate = false }) => {
       setLoading(true);
       const params = {};
       if (filters.team) params.team = filters.team;
-      if (filters.status) params.status = filters.status;
-      if (filters.priority) params.priority = filters.priority;
-      if (filters.overdue) params.overdue = filters.overdue;
-      if (filters.dueSoon) params.dueSoon = filters.dueSoon;
       if (filters.createdBy) params.createdBy = filters.createdBy;
+
+      // Use filters.status if set, otherwise exclude 'done' tasks by default
+      if (filters.status) {
+        params.status = filters.status;
+      } else {
+        params.status = 'todo,in-progress,in-review';
+      }
 
       const filteredTeam = teams.find(t => t._id === filters.team);
       const memberInFilteredTeam = filteredTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
@@ -710,6 +713,78 @@ const Tasks = ({ openCreate = false }) => {
     return team?.members || [];
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('File size too large. Max 50MB.');
+      return;
+    }
+
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    try {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+      
+      const loadingToast = toast.loading(`Uploading ${files.length} file(s)...`);
+
+      const response = await api.post(`/tasks/${editingTask}/attachments`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response?.success) {
+        toast.dismiss(loadingToast);
+        toast.success('File uploaded successfully');
+        setCurrentTaskDetails(response.data);
+        // Refresh tasks list as well
+        fetchTasks();
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error(response?.message || 'Failed to upload file');
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error(error.message || error || 'Error uploading file');
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return;
+
+    try {
+      const loadingToast = toast.loading('Deleting file...');
+      const response = await api.delete(`/tasks/${editingTask}/attachments/${attachmentId}`);
+
+      if (response?.success) {
+        toast.dismiss(loadingToast);
+        toast.success('File deleted');
+        setCurrentTaskDetails(response.data);
+        fetchTasks();
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error(response?.message || 'Failed to delete file');
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+      toast.error(error.message || error || 'Error deleting file');
+    }
+  };
+
+  const getFileIcon = (fileType) => {
+    if (fileType?.includes('image')) return <FiImage className="w-5 h-5 text-blue-500" />;
+    if (fileType?.includes('pdf')) return <FiFileText className="w-5 h-5 text-red-500" />;
+    if (fileType?.includes('word')) return <FiFile className="w-5 h-5 text-blue-600" />;
+    if (fileType?.includes('excel') || fileType?.includes('spreadsheet')) return <FiFile className="w-5 h-5 text-green-600" />;
+    return <FiFile className="w-5 h-5 text-gray-500" />;
+  };
+
   // Permission Logic Calculation
   const hasFullVisibility = useMemo(() => {
     if (!user) return false;
@@ -942,6 +1017,7 @@ const Tasks = ({ openCreate = false }) => {
           onEditTask={handleEditTask}
           onDeleteTask={handleDeleteTask}
           canDeleteTask={canDeleteTask}
+          hideDone={!filters.status}
         />
       ) : (
         /* List View */
@@ -1133,7 +1209,7 @@ const Tasks = ({ openCreate = false }) => {
             {/* Tabs - Only show when editing */}
             {editingTask && (
               <div className={`flex gap-1 sm:gap-2 mb-3 sm:mb-4 border-b overflow-x-auto ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                {['details', 'subtasks', 'time', 'activity'].map((tab) => (
+                {['details', 'subtasks', 'attachments', 'time', 'activity'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -1159,6 +1235,18 @@ const Tasks = ({ openCreate = false }) => {
                         )}
                       </span>
                     )}
+                    {tab === 'attachments' && (
+                      <span className="flex items-center gap-1 sm:gap-2">
+                        <FiPaperclip className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Attachments</span>
+                        <span className="sm:hidden">Docs</span>
+                        {currentTaskDetails?.attachments?.length > 0 && (
+                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                            {currentTaskDetails.attachments.length}
+                          </span>
+                        )}
+                      </span>
+                    )}
                     {tab === 'time' && (
                       <span className="flex items-center gap-1 sm:gap-2">
                         <FiClock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1177,7 +1265,6 @@ const Tasks = ({ openCreate = false }) => {
                 ))}
               </div>
             )}
-
             {activeTab === 'details' && (
               <form onSubmit={handleCreateTask} className="space-y-4">
                 <div>
@@ -1392,6 +1479,91 @@ const Tasks = ({ openCreate = false }) => {
                   </button>
                 </div>
               </form>
+            )}
+
+            {activeTab === 'attachments' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Task Attachments ({currentTaskDetails?.attachments?.length || 0})
+                  </h3>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="file-upload"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700 transition-colors cursor-pointer"
+                    >
+                      <FiUploadCloud className="w-4 h-4" />
+                      Upload Document
+                    </label>
+                  </div>
+                </div>
+
+                <div className={`border rounded-xl divide-y ${isDark ? 'border-gray-700 bg-gray-900/50 divide-gray-700' : 'border-gray-200 bg-gray-50/50 divide-gray-200'}`}>
+                  {currentTaskDetails?.attachments?.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <FiPaperclip className={`w-10 h-10 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No documents attached to this task</p>
+                    </div>
+                  ) : (
+                    currentTaskDetails?.attachments?.map((attachment) => (
+                      <div key={attachment._id} className="p-3 sm:p-4 flex items-center justify-between gap-4 group">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`p-2 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}>
+                            {getFileIcon(attachment.fileType)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={attachment.name}>
+                              {attachment.name}
+                            </p>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {(attachment.fileSize / (1024 * 1024)).toFixed(2)} MB • {new Date(attachment.uploadedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`p-2 rounded-lg hover:bg-primary-50 hover:text-primary-600 transition-all ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                            title="View"
+                          >
+                            <FiEye className="w-4 h-4" />
+                          </a>
+                          <a
+                            href={attachment.url.includes('cloudinary.com') ? attachment.url.replace('/upload/', '/upload/fl_attachment/') : attachment.url}
+                            download={attachment.name}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`p-2 rounded-lg hover:bg-green-50 hover:text-green-600 transition-all ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                            title="Download"
+                          >
+                            <FiDownload className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteAttachment(attachment._id)}
+                            className={`p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-all ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                            title="Delete"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <p className={`text-[10px] text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Supported formats: PDF, Word, Excel, CSV, Images (Max 50MB)
+                </p>
+              </div>
             )}
 
             {/* Subtasks Tab */}

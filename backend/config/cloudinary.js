@@ -117,15 +117,19 @@ const documentUpload = multer({
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'text/csv',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
     ];
     
     const ext = file.originalname.split('.').pop().toLowerCase();
-    const allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
+    const allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
     
     if (allowedTypes.includes(file.mimetype) || allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Invalid file type: ${file.originalname}. Allowed: PDF, Word, Excel, CSV, TXT`));
+      cb(new Error(`Invalid file type: ${file.originalname}. Allowed: PDF, Word, Excel, CSV, TXT, Images`));
     }
   },
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB

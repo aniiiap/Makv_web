@@ -127,3 +127,23 @@ try {
   });
 }
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('❌ Server Error:', err);
+  
+  // Specific handling for Multer errors
+  if (err.name === 'MulterError') {
+    return res.status(400).json({
+      success: false,
+      message: `File upload error: ${err.message}`,
+    });
+  }
+
+  // Handle generic errors
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+  });
+});
+

@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiDollarSign, FiBriefcase } from 'react-icons/fi';
 import api from '../utils/taskManager.api';
 
-const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask }) => {
+const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask, hideDone = false }) => {
   const [draggedTask, setDraggedTask] = useState(null);
 
-  const columns = [
+  const allColumns = [
     { id: 'todo', title: 'To Do', color: 'bg-gray-100' },
     { id: 'in-progress', title: 'In Progress', color: 'bg-blue-100' },
     { id: 'in-review', title: 'In Review', color: 'bg-purple-100' },
     { id: 'done', title: 'Done', color: 'bg-green-100' },
   ];
+
+  const columns = hideDone ? allColumns.filter(col => col.id !== 'done') : allColumns;
 
   const getTasksByStatus = (status) => {
     return tasks.filter((task) => task.status === status);
@@ -50,13 +52,13 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
   };
 
   return (
-    <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+    <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 w-full">
       {columns.map((column) => {
         const columnTasks = getTasksByStatus(column.id);
         return (
           <div
             key={column.id}
-            className="flex-shrink-0 w-64 sm:w-72 lg:w-80"
+            className="flex-1 min-w-[280px] sm:min-w-[320px]"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, column.id)}
           >

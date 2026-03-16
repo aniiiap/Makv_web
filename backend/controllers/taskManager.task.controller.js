@@ -5,6 +5,7 @@ const TaskManagerActivityLog = require('../models/taskManager.ActivityLog');
 const { sendEmail } = require('../utils/taskManager.emailService');
 const TaskManagerUser = require('../models/TaskManagerUser');
 const { getIO } = require('../utils/taskManager.socketManager');
+const { cloudinary } = require('../config/cloudinary');
 
 // Helper function to create activity log
 const createActivityLog = async (taskId, userId, action, field, oldValue, newValue, description) => {
@@ -73,11 +74,12 @@ exports.getTasks = async (req, res, next) => {
 
     // Filter by status
     if (status) {
+      const statusValue = status.includes(',') ? { $in: status.split(',') } : status;
       if (query.$or) {
         // Apply status to both parts of $or
-        query.$or = query.$or.map(condition => ({ ...condition, status }));
+        query.$or = query.$or.map(condition => ({ ...condition, status: statusValue }));
       } else {
-        query.status = status;
+        query.status = statusValue;
       }
     }
 
@@ -1962,6 +1964,203 @@ exports.clearActivities = async (req, res, next) => {
     }
     await TaskManagerActivityLog.deleteMany({ task: req.params.id });
     res.json({ success: true, message: 'All activities cleared successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add attachment to task
+// @route   POST /api/tasks/:id/attachments
+// @access  Private
+exports.addAttachment = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload at least one file',
+      });
+    }
+
+    const task = await TaskManagerTask.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    // Verify user can modify task
+    if (task.team) {
+      const team = await TaskManagerTeam.findOne({
+        _id: task.team,
+        'members.user': req.user.id,
+        isActive: true,
+      });
+
+      if (!team) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to modify this task',
+        });
+      }
+    } else {
+      if (task.createdBy.toString() !== req.user.id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to modify this task',
+        });
+      }
+    }
+
+    const uploadedAttachments = [];
+    
+    // Process each uploaded file
+    for (const file of req.files) {
+      const attachmentUrl = (file.path || file.secure_url || '').replace('http://', 'https://');
+      
+      const newAttachment = {
+        url: attachmentUrl,
+        name: file.originalname,
+        fileType: file.mimetype,
+        fileSize: file.size,
+        publicId: file.filename,
+        uploadedBy: req.user.id,
+      };
+
+      task.attachments.push(newAttachment);
+      uploadedAttachments.push(newAttachment);
+      
+      // Log activity in background
+      createActivityLog(
+        task._id,
+        req.user.id,
+        'attachment_added',
+        'attachments',
+        null,
+        newAttachment.name,
+        `Added attachment: "${newAttachment.name}"`
+      );
+    }
+
+    await task.save();
+
+    // Populate in memory for response
+    await task.populate([
+      { path: 'team', select: 'name' },
+      { path: 'assignedTo', select: 'name email avatar' },
+      { path: 'createdBy', select: 'name email avatar' },
+      { path: 'comments.user', select: 'name email avatar' },
+      { path: 'attachments.uploadedBy', select: 'name email avatar' }
+    ]);
+
+    res.json({
+      success: true,
+      message: `${req.files.length} file(s) uploaded successfully`,
+      data: task,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete attachment from task
+// @route   DELETE /api/tasks/:id/attachments/:attachmentId
+// @access  Private
+exports.deleteAttachment = async (req, res, next) => {
+  try {
+    const task = await TaskManagerTask.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    // Verify user can modify task
+    if (task.team) {
+      const team = await TaskManagerTeam.findOne({
+        _id: task.team,
+        'members.user': req.user.id,
+        isActive: true,
+      });
+
+      if (!team) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to modify this task',
+        });
+      }
+    } else {
+      if (task.createdBy.toString() !== req.user.id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to modify this task',
+        });
+      }
+    }
+    
+    const attachment = task.attachments.id(req.params.attachmentId);
+
+    if (!attachment) {
+      console.warn('❌ Attachment not found:', req.params.attachmentId);
+      return res.status(404).json({
+        success: false,
+        message: 'Attachment not found',
+      });
+    }
+
+    // Delete from Cloudinary if publicId exists - done in background for speed
+    if (attachment.publicId) {
+      const publicId = attachment.publicId;
+      const fileName = attachment.name;
+      
+      // Determine resource type for deletion
+      let resourceType = 'raw';
+      const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+      if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext)) {
+        resourceType = 'image';
+      } else if (['.mp4', '.mov', '.avi', '.mkv'].includes(ext)) {
+        resourceType = 'video';
+      }
+
+      console.log(`🗑️ Deleting from Cloudinary (${resourceType}):`, publicId);
+      
+      // Don't await this to keep response fast
+      cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
+        .then(result => console.log('✅ Cloudinary deletion result:', result))
+        .catch(err => console.error('❌ Cloudinary deletion error:', err));
+    }
+
+    const attachmentName = attachment.name;
+    task.attachments.pull(req.params.attachmentId);
+    await task.save();
+
+    // Log activity in background
+    createActivityLog(
+      task._id,
+      req.user.id,
+      'attachment_deleted',
+      'attachments',
+      attachmentName,
+      null,
+      `Deleted attachment: "${attachmentName}"`
+    );
+
+    // Populate in memory
+    await task.populate([
+      { path: 'team', select: 'name' },
+      { path: 'assignedTo', select: 'name email avatar' },
+      { path: 'createdBy', select: 'name email avatar' },
+      { path: 'comments.user', select: 'name email avatar' },
+      { path: 'attachments.uploadedBy', select: 'name email avatar' }
+    ]);
+
+    res.json({
+      success: true,
+      data: task,
+    });
   } catch (error) {
     next(error);
   }

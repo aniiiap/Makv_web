@@ -75,7 +75,7 @@ const Dashboard = () => {
 
       const [statsResponse, tasksResponse] = await Promise.all([
         api.get('/tasks/stats/dashboard', { params: selectedTeam ? { team: selectedTeam } : {} }),
-        api.get('/tasks', { params }),
+        api.get('/tasks', { params: { ...params, status: 'todo,in-progress,in-review' } }),
       ]);
 
       setStats(statsResponse.data);

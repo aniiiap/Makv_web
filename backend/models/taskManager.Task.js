@@ -55,8 +55,21 @@ const taskSchema = new mongoose.Schema(
     ],
     attachments: [
       {
-        url: String,
-        name: String,
+        url: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+        },
+        fileType: String,
+        fileSize: Number,
+        publicId: String,
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'TaskManagerUser',
+        },
         uploadedAt: {
           type: Date,
           default: Date.now,

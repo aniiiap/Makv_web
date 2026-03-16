@@ -6,7 +6,7 @@ import { useTheme } from '../context/taskManager.ThemeContext';
 import { useTimer } from '../context/taskManager.TimerContext';
 import Notifications from './taskManager.Notifications';
 import { GoogleLogin } from '@react-oauth/google';
-import { FiLayout, FiUsers, FiCheckSquare, FiMenu, FiX, FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, FiShield, FiBriefcase, FiPause, FiPlay } from 'react-icons/fi';
+import { FiLayout, FiUsers, FiCheckSquare, FiCheckCircle, FiMenu, FiX, FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, FiShield, FiBriefcase, FiPause, FiPlay } from 'react-icons/fi';
 
 // Avatar component with fallback for sidebar
 const SidebarAvatar = ({ user }) => {
@@ -49,6 +49,7 @@ const Layout = ({ children }) => {
     { name: 'Teams', href: '/taskflow/teams', icon: FiUsers },
     { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
+    { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },
     { name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText },
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
