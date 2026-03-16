@@ -115,14 +115,14 @@ const Dashboard = () => {
       value: stats?.myDoneTasks || 0,
       icon: FiCheckCircle,
       color: 'from-emerald-500 to-emerald-600',
-      link: '/taskflow/tasks?status=done&assignedTo=me',
+      link: '/taskflow/tasks/completed?assignedTo=me',
     },
     {
       name: 'Completed (All)',
       value: stats?.doneTasks || 0,
       icon: FiCheckCircle,
       color: 'from-green-500 to-green-600',
-      link: '/taskflow/tasks?status=done',
+      link: '/taskflow/tasks/completed',
     },
     {
       name: 'In Progress',

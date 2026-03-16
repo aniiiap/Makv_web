@@ -4,7 +4,7 @@ import api from '../utils/taskManager.api';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import {
-  FiCheckCircle, FiUser, FiCalendar, FiTag, FiSearch, FiFolder, FiDownload, FiDollarSign, FiClock, FiTrash2
+  FiCheckCircle, FiUser, FiCalendar, FiTag, FiSearch, FiFolder, FiDownload, FiDollarSign, FiClock, FiTrash2, FiPaperclip, FiX, FiEye, FiFile, FiImage, FiFileText
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 
@@ -16,6 +16,8 @@ const CompletedTasks = () => {
   const { isDark } = useTheme();
   const { user } = useTaskManagerAuth();
   const [searchParams] = useSearchParams();
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showAttachmentsModal, setShowAttachmentsModal] = useState(false);
 
   const [filters, setFilters] = useState(() => {
     const teamFilter = localStorage.getItem('teamFilter') || '';
@@ -79,6 +81,14 @@ const CompletedTasks = () => {
       (task.description && task.description.toLowerCase().includes(query))
     );
   }, [tasks, searchText]);
+
+  const getFileIcon = (fileType) => {
+    if (fileType?.includes('image')) return <FiImage className="w-5 h-5 text-blue-500" />;
+    if (fileType?.includes('pdf')) return <FiFileText className="w-5 h-5 text-red-500" />;
+    if (fileType?.includes('word')) return <FiFile className="w-5 h-5 text-blue-600" />;
+    if (fileType?.includes('excel') || fileType?.includes('spreadsheet')) return <FiFile className="w-5 h-5 text-green-600" />;
+    return <FiFile className="w-5 h-5 text-gray-500" />;
+  };
 
   const handleExportExcel = () => {
     if (tasks.length === 0) return;
@@ -178,6 +188,18 @@ const CompletedTasks = () => {
                       <FiCheckCircle className="w-3 h-3" />
                       Completed
                     </span>
+                    {task.attachments?.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setShowAttachmentsModal(true);
+                        }}
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-colors ${isDark ? 'bg-primary-900/30 text-primary-400 hover:bg-primary-900/50' : 'bg-primary-100 text-primary-700 hover:bg-primary-200'}`}
+                      >
+                        <FiPaperclip className="w-3 h-3" />
+                        {task.attachments.length} Attachment{task.attachments.length > 1 ? 's' : ''}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
@@ -189,6 +211,73 @@ const CompletedTasks = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Attachments Modal */}
+      {showAttachmentsModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl overflow-hidden`}>
+            <div className="p-4 sm:p-6 border-b flex items-center justify-between border-gray-700">
+              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Attachments: {selectedTask.title}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAttachmentsModal(false);
+                  setSelectedTask(null);
+                }}
+                className={`p-2 rounded-full transition-colors ${isDark ? 'bg-gray-700 text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
+              {selectedTask.attachments.map((attachment) => (
+                <div key={attachment._id} className={`p-4 rounded-xl flex items-center justify-between gap-4 border ${isDark ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}>
+                      {getFileIcon(attachment.fileType)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={attachment.name}>
+                        {attachment.name}
+                      </p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {(attachment.fileSize / (1024 * 1024)).toFixed(2)} MB • {new Date(attachment.uploadedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`p-2 rounded-lg hover:bg-primary-50 hover:text-primary-600 transition-all ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                      title="View"
+                    >
+                      <FiEye className="w-5 h-5" />
+                    </a>
+                    <a
+                      href={attachment.url.includes('cloudinary.com') ? attachment.url.replace('/upload/', '/upload/fl_attachment/') : attachment.url}
+                      download={attachment.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`p-2 rounded-lg hover:bg-green-50 hover:text-green-600 transition-all ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                      title="Download"
+                    >
+                      <FiDownload className="w-5 h-5" />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className={`p-4 sm:p-6 border-t font-medium text-center ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+              Download or view full documents
+            </div>
+          </div>
         </div>
       )}
     </div>
