@@ -487,12 +487,8 @@ router.post('/', auth, isMaster, async (req, res) => {
       cleanedData.phone = cleanedData.phone.replace(/[^\d]/g, '').slice(-10); // Last 10 digits
     }
     
-    // Remove empty strings (except name and pan which might be needed)
-    Object.keys(cleanedData).forEach(key => {
-      if (cleanedData[key] === '' && key !== 'name' && key !== 'pan') {
-        delete cleanedData[key];
-      }
-    });
+    // Allow empty strings to be passed through (don't delete them) 
+    // This allows clearing optional fields during creation/update from Admin Dashboard
 
     // Generate clientId if not provided
     if (!clientData.clientId) {
@@ -1002,12 +998,8 @@ router.put('/:id', auth, isMaster, async (req, res) => {
       cleanedData.phone = cleanedData.phone.replace(/[^\d]/g, '').slice(-10); // Last 10 digits
     }
     
-    // Remove empty strings (except name and pan which might be needed)
-    Object.keys(cleanedData).forEach(key => {
-      if (cleanedData[key] === '' && key !== 'name' && key !== 'pan') {
-        delete cleanedData[key];
-      }
-    });
+    // Don't remove empty strings - this prevents users from clearing fields like email or address
+    // during update. Mongoose will save them as empty strings if they are optional.
 
     // Don't update clientId - it should remain the same
     // Add updatedAt timestamp

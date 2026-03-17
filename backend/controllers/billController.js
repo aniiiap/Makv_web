@@ -173,7 +173,8 @@ const generatePDF = async (billData) => {
             <tr style="border-bottom: none;">
               <td class="col-desc no-border-bottom">
                 <div class="bold">${item.description}</div>
-                ${index === 0 ? '<div style="font-style: italic; margin-top: 2px;">PROFESSIONAL CHARGES FOR THE MONTH OF ' + new Date(billData.date).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }).toUpperCase() + '</div>' : ''}
+                ${item.subDescription ? '<div style="font-style: italic; margin-top: 2px;">' + item.subDescription + '</div>' : ''}
+                ${index === 0 && !item.subDescription ? '<div style="font-style: italic; margin-top: 2px;">PROFESSIONAL CHARGES FOR THE MONTH OF ' + new Date(billData.date).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }).toUpperCase() + '</div>' : ''}
                 ${billData.taxDetails.isMaharashtra ? `
                 <div style="text-align: right; margin-top: 10px;">Output Cgst</div>
                 <div style="text-align: right;">Output Sgst</div>
@@ -487,7 +488,11 @@ exports.createBill = async (req, res) => {
         // We need an Office User ID (uploadedBy) for the document. 
         // We'll try to find the office user who matches the Task Manager user's email.
         const officeUser = await User.findOne({ email: req.user.email });
-        if (officeUser) {
+        
+        // Robust fallback: find any admin if the current user profile doesn't exist in office users
+        const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
+
+        if (uploadedBy) {
           const doc = new Document({
             clientId: billData.buyerDetails.clientId,
             fileName: `${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
@@ -496,13 +501,13 @@ exports.createBill = async (req, res) => {
             fileType: 'application/pdf',
             fileSize: pdfBuffer ? pdfBuffer.length : 0,
             documentType: 'invoice',
-            uploadedBy: officeUser._id,
+            uploadedBy: uploadedBy,
             description: `Generated from Task Manager (Auto-attached)`
           });
           await doc.save();
           console.log(`Document saved to client ${billData.buyerDetails.clientId}`);
         } else {
-          console.warn(`Could not attach document: No office user found with email ${req.user.email}`);
+          console.warn(`Could not attach document: No valid admin/master user found for uploadedBy`);
         }
       } catch (clientDocErr) {
         console.error('Failed to attach document to client dashboard:', clientDocErr);
@@ -895,21 +900,30 @@ exports.createHUFBill = async (req, res) => {
     // 5. Attach to client dashboard (if buyer has clientId)
     if (billData.buyerDetails && billData.buyerDetails.clientId) {
       try {
+        // We need an Office User ID (uploadedBy) for the document.
+        // We'll try to find the office user who matches the Task Manager user's email.
+        const User = require('../models/User');
         const officeUser = await User.findOne({ email: req.user.email });
-        if (officeUser) {
+
+        // Robust fallback: find any admin if the current user profile doesn't exist in office users
+        const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
+
+        if (uploadedBy) {
           const doc = new Document({
             clientId: billData.buyerDetails.clientId,
-            fileName: `${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
+            fileName: `HUF-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
             originalName: `HUF-Invoice-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
             cloudinaryUrl: billData.pdfUrl,
             fileType: 'application/pdf',
             fileSize: pdfBuffer ? pdfBuffer.length : 0,
             documentType: 'huf-invoice',
-            uploadedBy: officeUser._id,
-            description: `HUF Invoice (Auto-attached)`
+            uploadedBy: uploadedBy,
+            description: `Generated from Task Manager (Auto-attached)`
           });
           await doc.save();
-          console.log(`HUF document saved to client ${billData.buyerDetails.clientId}`);
+          console.log(`HUF Document saved to client ${billData.buyerDetails.clientId}`);
+        } else {
+          console.warn(`Could not attach HUF document: No valid admin/master user found for uploadedBy`);
         }
       } catch (docErr) {
         console.error('Failed to attach HUF doc to client:', docErr);

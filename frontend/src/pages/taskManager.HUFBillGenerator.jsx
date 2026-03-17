@@ -1,16 +1,19 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
+import ConfirmationModal from '../components/taskManager.ConfirmationModal';
 
 const HUFBillGenerator = () => {
     const navigate = useNavigate();
     const { isDark } = useTheme();
     const [loading, setLoading] = useState(false);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
+    const [officeClients, setOfficeClients] = useState([]);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
     const getLocalDateString = () => {
         const offset = new Date().getTimezoneOffset() * 60000;
@@ -18,7 +21,7 @@ const HUFBillGenerator = () => {
     };
 
     const [formData, setFormData] = useState({
-        invoiceNo: 'Auto-generated upon save',
+        invoiceNo: 'Auto-generated',
         date: getLocalDateString(),
 
         // Extra Fields
@@ -37,12 +40,29 @@ const HUFBillGenerator = () => {
         buyerDetails: {
             name: '',
             address: '',
+            clientId: '',
         },
         items: [
             { description: 'Professional Services', subDescription: '', amount: 0 }
         ],
         sentToEmail: '',
     });
+
+    useEffect(() => {
+        const fetchClients = async () => {
+            try {
+                const res = await api.get('/bills/clients');
+                if (res?.success) {
+                    setOfficeClients(res.data || []);
+                } else if (Array.isArray(res)) {
+                    setOfficeClients(res);
+                }
+            } catch (error) {
+                console.error('Error fetching clients:', error);
+            }
+        };
+        fetchClients();
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -83,12 +103,15 @@ const HUFBillGenerator = () => {
         }, 0);
     };
 
-    const numberToWords = (num) => {
-        return `INR ${Math.floor(num)} Only`;
+    const numberToWords = (num) => `INR ${Math.floor(num)} Only`;
+
+    const handleSubmit = (e) => {
+        if (e) e.preventDefault();
+        setIsConfirmModalOpen(true);
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleConfirmSubmit = async () => {
+        setIsConfirmModalOpen(false);
         setLoading(true);
 
         try {
@@ -115,7 +138,6 @@ const HUFBillGenerator = () => {
     };
 
     const total = calculateTotal();
-
     const inputClass = `w-full p-2 rounded border focus:ring-2 focus:ring-primary-500 outline-none ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`;
     const labelClass = "block text-xs font-semibold uppercase tracking-wider mb-1 opacity-70";
 
@@ -213,12 +235,47 @@ const HUFBillGenerator = () => {
                 {/* Buyer Details */}
                 <div className={`rounded-xl p-6 shadow-md border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                     <h2 className="text-lg font-semibold mb-4">Buyer Details</h2>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                            <label className={labelClass}>Select Existing Client (Optional)</label>
+                            <select
+                                onChange={(e) => {
+                                    const selectedClientId = e.target.value;
+                                    const client = officeClients.find(c => c._id === selectedClientId);
+                                    if (client) {
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            buyerDetails: {
+                                                ...prev.buyerDetails,
+                                                clientId: client._id,
+                                                name: client.name,
+                                                address: client.address || '',
+                                            },
+                                            sentToEmail: client.email || prev.sentToEmail
+                                        }));
+                                    } else {
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            buyerDetails: { ...prev.buyerDetails, clientId: '', name: e.target.value }
+                                        }));
+                                    }
+                                }}
+                                className={inputClass}
+                            >
+                                <option value="">-- Select a Client --</option>
+                                {officeClients.map(client => (
+                                    <option key={client._id} value={client._id}>
+                                        {client.name} {client.clientId ? `(${client.clientId})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] mt-1 opacity-60 italic">Selecting a client will auto-fill details and link the invoice to their dashboard.</p>
+                        </div>
                         <div>
                             <label className={labelClass}>Buyer Name</label>
                             <input type="text" name="name" value={formData.buyerDetails.name} onChange={handleBuyerChange} className={inputClass} placeholder="e.g. NEWFABRICS PACKAGING PRIVATE LIMITED" required />
                         </div>
-                        <div>
+                        <div className="md:col-span-2">
                             <label className={labelClass}>Address</label>
                             <textarea name="address" value={formData.buyerDetails.address} onChange={handleBuyerChange} className={`${inputClass} h-20`} placeholder="Full address" required />
                         </div>
@@ -295,6 +352,16 @@ const HUFBillGenerator = () => {
                     {loading ? 'Generating...' : 'Generate HUF Invoice'}
                 </button>
             </form>
+
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={handleConfirmSubmit}
+                isLoading={loading}
+                title="Generate HUF Invoice?"
+                message="This will create a professional HUF Invoice PDF and send it to the client. Please ensure all details are correct."
+                confirmText="Generate HUF Invoice"
+            />
         </div>
     );
 };

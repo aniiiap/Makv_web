@@ -1,9 +1,11 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
-import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import {
+    FiPlus, FiTrash2, FiSave, FiArrowLeft, FiChevronDown, FiChevronUp,
+} from 'react-icons/fi';
+import ConfirmationModal from '../components/taskManager.ConfirmationModal';
 import { toast } from 'react-hot-toast';
 
 const BillGenerator = () => {
@@ -14,7 +16,6 @@ const BillGenerator = () => {
 
     const { isDark } = useTheme();
     const [loading, setLoading] = useState(false);
-    const [teams, setTeams] = useState([]);
     const [officeClients, setOfficeClients] = useState([]);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
 
@@ -24,10 +25,9 @@ const BillGenerator = () => {
     };
 
     const [formData, setFormData] = useState({
-        invoiceNo: 'Auto-generated upon save',
+        invoiceNo: 'Auto-generated',
         date: getLocalDateString(),
-        team: '', // New field for team association
-        taskId: taskId, // Linking back to task Manager
+        taskId: taskId,
 
         // Extra Fields
         deliveryNote: '',
@@ -47,39 +47,32 @@ const BillGenerator = () => {
             address: '',
             gstin: '',
             stateCode: '06',
+            clientId: '',
         },
         items: [
-            { description: 'Professional services', hsn: '9983', amount: 0, taxRate: 18 }
+            { description: 'Professional services', subDescription: '', hsn: '9983', amount: 0, taxRate: 18 }
         ],
         sentToEmail: '',
     });
 
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // Fetch Teams
-                const teamsRes = await api.get('/teams');
-                setTeams(teamsRes.data || []);
-
-                // Fetch Office Clients
                 const clientsRes = await api.get('/bills/clients');
-
-                // the api interceptor automatically returns response.data, 
-                // so clientsRes is actually the { success: true, data: [...] } payload.
                 if (clientsRes?.success) {
                     setOfficeClients(clientsRes.data || []);
                 } else if (Array.isArray(clientsRes)) {
-                    // Fallback just in case the backend returns a direct array in some circumstances
                     setOfficeClients(clientsRes);
                 }
             } catch (error) {
-                console.error('Error fetching initial data:', error);
+                console.error('Error fetching office clients:', error);
             }
         };
         fetchInitialData();
     }, []);
 
-    // Auto-fill buyer details from client when redirected from a client task
     useEffect(() => {
         if (!taskId) return;
         const fetchTaskAndClient = async () => {
@@ -87,7 +80,6 @@ const BillGenerator = () => {
                 const taskRes = await api.get(`/tasks/${taskId}`);
                 const task = taskRes?.data || taskRes;
                 if (task?.client) {
-                    // Fetch full client details
                     const clientId = task.client._id || task.client;
                     const clientRes = await api.get(`/clients/${clientId}`);
                     const client = clientRes?.client || clientRes?.data?.client || clientRes;
@@ -131,12 +123,11 @@ const BillGenerator = () => {
                     name: client.name,
                     address: client.address || '',
                     gstin: client.gstin || '',
-                    stateCode: client.stateCode || '06', // Default or fallback
+                    stateCode: client.stateCode || '06',
                 },
                 sentToEmail: client.email || prev.sentToEmail
             }));
         } else {
-            // Clearing if manually typing a custom client name instead of selecting
             setFormData(prev => ({
                 ...prev,
                 buyerDetails: {
@@ -147,17 +138,6 @@ const BillGenerator = () => {
             }));
         }
     };
-
-    // ... (rest of handlers)
-
-    // ... inside render:
-    /* 
-       Note: I will use a separate replace call for the UI part to keep chunks clean if needed, 
-       but here I am replacing the top part of the component.
-       Wait, I can't insert the UI in this chunk because it's further down.
-       I'll just add the useEffect here.
-    */
-
 
     const handleBuyerChange = (e) => {
         const { name, value } = e.target;
@@ -176,7 +156,7 @@ const BillGenerator = () => {
     const addItem = () => {
         setFormData(prev => ({
             ...prev,
-            items: [...prev.items, { description: '', hsn: '9983', amount: 0, taxRate: 18 }]
+            items: [...prev.items, { description: '', subDescription: '', hsn: '9983', amount: 0, taxRate: 18 }]
         }));
     };
 
@@ -198,8 +178,6 @@ const BillGenerator = () => {
             return acc + (amt * rate / 100);
         }, 0);
         const total = subtotal + taxAmount;
-
-        // Maharashtra state code = 27 → CGST + SGST, else IGST
         const isMaharashtra = formData.buyerDetails.stateCode === '27';
 
         return {
@@ -214,17 +192,16 @@ const BillGenerator = () => {
         };
     };
 
-    const numberToWords = (num) => {
-        // Basic placeholder - for production a robust library like 'number-to-words' is strictly recommended
-        return `Rupees ${Math.floor(num)} Only`;
+    const numberToWords = (num) => `Rupees ${Math.floor(num)} Only`;
+    const taxToWords = (num) => `INR ${Math.floor(num)} Only`;
+
+    const handleSubmit = (e) => {
+        if (e) e.preventDefault();
+        setIsConfirmModalOpen(true);
     };
 
-    const taxToWords = (num) => {
-        return `INR ${Math.floor(num)} Only`;
-    }
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleConfirmSubmit = async () => {
+        setIsConfirmModalOpen(false);
         setLoading(true);
 
         try {
@@ -283,15 +260,12 @@ const BillGenerator = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
-
-
                     {/* Main Info */}
                     <div className="grid md:grid-cols-2 gap-6">
                         <div>
                             <label className={labelClass}>Invoice No</label>
                             <input
                                 type="text"
-                                name="invoiceNo"
                                 value={formData.invoiceNo}
                                 className={`${inputClass} opacity-70 cursor-not-allowed`}
                                 disabled
@@ -301,7 +275,7 @@ const BillGenerator = () => {
                         <div>
                             <label className={labelClass}>Invoice Date</label>
                             <input
-                                type="date" // Using standard date type; if not supported or specific format desirable, text is fine
+                                type="date"
                                 value={formData.date}
                                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                 className={inputClass}
@@ -314,9 +288,7 @@ const BillGenerator = () => {
 
                     {/* Buyer Details */}
                     <div>
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            Buyer Details
-                        </h3>
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">Buyer Details</h3>
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                                 <label className={labelClass}>Buyer Name (Select from Office Clients)</label>
@@ -333,7 +305,6 @@ const BillGenerator = () => {
                                             </option>
                                         ))}
                                     </select>
-
                                     <input
                                         type="text"
                                         name="name"
@@ -466,12 +437,12 @@ const BillGenerator = () => {
                                 <FiPlus /> Add Item
                             </button>
                         </div>
-
                         <div className={`overflow-hidden rounded-lg border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                             <table className="w-full text-left border-collapse">
                                 <thead className={`text-xs uppercase bg-opacity-50 ${isDark ? 'bg-gray-900 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
                                     <tr>
                                         <th className="p-3 font-semibold">Description</th>
+                                        <th className="p-3 font-semibold">Sub-Description</th>
                                         <th className="p-3 w-24 font-semibold">HSN/SAC</th>
                                         <th className="p-3 w-24 font-semibold">Tax (%)</th>
                                         <th className="p-3 w-32 font-semibold">Amount</th>
@@ -488,6 +459,15 @@ const BillGenerator = () => {
                                                     onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                                                     className={inputClass}
                                                     required
+                                                />
+                                            </td>
+                                            <td className="p-2">
+                                                <input
+                                                    type="text"
+                                                    value={item.subDescription || ''}
+                                                    onChange={(e) => handleItemChange(index, 'subDescription', e.target.value)}
+                                                    className={inputClass}
+                                                    placeholder="Italic description"
                                                 />
                                             </td>
                                             <td className="p-2">
@@ -580,7 +560,17 @@ const BillGenerator = () => {
                     </div>
                 </form>
             </div>
-        </div >
+
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={handleConfirmSubmit}
+                isLoading={loading}
+                title="Generate Tax Invoice?"
+                message="This will create a professional Tax Invoice PDF and send it to the client. Please ensure all items and totals are correct."
+                confirmText="Generate Invoice"
+            />
+        </div>
     );
 };
 
