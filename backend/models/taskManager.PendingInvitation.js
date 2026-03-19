@@ -46,6 +46,7 @@ const pendingInvitationSchema = new mongoose.Schema(
 );
 
 // Index for faster lookups
+pendingInvitationSchema.index({ email: 1, accepted: 1, expiresAt: 1 });
 pendingInvitationSchema.index({ email: 1, team: 1 });
 pendingInvitationSchema.index({ inviteToken: 1 });
 pendingInvitationSchema.index({ expiresAt: 1 });

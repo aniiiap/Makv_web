@@ -61,5 +61,8 @@ teamSchema.pre('save', function (next) {
   next();
 });
 
+// Indexes for better query performance
+teamSchema.index({ 'members.user': 1, isActive: 1 });
+
 module.exports = mongoose.model('TaskManagerTeam', teamSchema);
 

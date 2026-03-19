@@ -26,45 +26,68 @@ const acceptPendingInvitations = async (userId, email) => {
       expiresAt: { $gt: Date.now() },
     }).populate('team');
 
+    if (pendingInvitations.length === 0) return 0;
+
+    // Group invitations by team to avoid multiple saves for the same team
+    const teamGroups = {};
     for (const invitation of pendingInvitations) {
-      const team = invitation.team;
-
-      // Check if user is already a member
-      const isMember = team.members.some(
-        (m) => m.user.toString() === userId.toString()
-      );
-
-      if (!isMember) {
-        // Add user to team
-        team.members.push({
-          user: userId,
-          role: invitation.role,
-        });
-
-        await team.save();
-
-        // Mark invitation as accepted
-        invitation.accepted = true;
-        invitation.acceptedAt = new Date();
-        await invitation.save();
-
-        // Create notification for team owner
-        const ownerNotification = await TaskManagerNotification.create({
-          user: team.owner,
-          type: 'team_joined',
-          title: 'New Team Member',
-          message: `A new member joined ${team.name}`,
-          relatedTeam: team._id,
-        });
-
-        getIO().to(team.owner.toString()).emit('notification', ownerNotification);
-      } else {
-        // Mark as accepted even if already a member
-        invitation.accepted = true;
-        invitation.acceptedAt = new Date();
-        await invitation.save();
+      if (!invitation.team) continue;
+      const teamId = invitation.team._id.toString();
+      if (!teamGroups[teamId]) {
+        teamGroups[teamId] = {
+          team: invitation.team,
+          invitations: []
+        };
       }
+      teamGroups[teamId].invitations.push(invitation);
     }
+
+    const teamSavePromises = Object.values(teamGroups).map(async ({ team, invitations }) => {
+      let teamModified = false;
+      const notifications = [];
+
+      for (const invitation of invitations) {
+        const isMember = team.members.some(
+          (m) => m.user.toString() === userId.toString()
+        );
+
+        if (!isMember) {
+          team.members.push({
+            user: userId,
+            role: invitation.role,
+          });
+          teamModified = true;
+
+          // Prepare notification for team owner
+          notifications.push(
+            TaskManagerNotification.create({
+              user: team.owner,
+              type: 'team_joined',
+              title: 'New Team Member',
+              message: `A new member joined ${team.name}`,
+              relatedTeam: team._id,
+            }).then(notif => {
+              getIO().to(team.owner.toString()).emit('notification', notif);
+            })
+          );
+        }
+      }
+
+      if (teamModified) {
+        await team.save();
+      }
+      
+      await Promise.all(notifications);
+    });
+
+    // Handle invitation updates in parallel
+    const invitationPromises = pendingInvitations.map(invitation => {
+      invitation.accepted = true;
+      invitation.acceptedAt = new Date();
+      return invitation.save();
+    });
+
+    await Promise.all([...teamSavePromises, ...invitationPromises]);
 
     return pendingInvitations.length;
   } catch (error) {

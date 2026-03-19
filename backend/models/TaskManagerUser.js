@@ -84,5 +84,8 @@ taskManagerUserSchema.pre('save', function (next) {
   next();
 });
 
+// Indexes for better query performance
+taskManagerUserSchema.index({ isActive: 1, role: 1 });
+
 module.exports = mongoose.model('TaskManagerUser', taskManagerUserSchema);
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
@@ -6,9 +6,15 @@ import { useTheme } from '../context/taskManager.ThemeContext';
 import { useTimer } from '../context/taskManager.TimerContext';
 import Notifications from './taskManager.Notifications';
 import { GoogleLogin } from '@react-oauth/google';
-import { FiLayout, FiUsers, FiCheckSquare, FiCheckCircle, FiMenu, FiX, FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, FiShield, FiBriefcase, FiPause, FiPlay } from 'react-icons/fi';
+import { 
+  FiLayout, FiUsers, FiCheckSquare, FiCheckCircle, FiMenu, FiX, 
+  FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, 
+  FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, 
+  FiShield, FiBriefcase, FiPause, FiPlay, FiClock 
+} from 'react-icons/fi';
 
-// Avatar component with fallback for sidebar
+
+// Triggering reload for DailyProgress widget
 const SidebarAvatar = ({ user }) => {
   const [imageError, setImageError] = useState(false);
   const hasAvatar = user?.avatar && user.avatar.trim() && !imageError;
@@ -32,6 +38,44 @@ const SidebarAvatar = ({ user }) => {
 };
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+// Daily Progress Widget
+const DailyProgress = () => {
+  const [stats, setStats] = useState({ hours: 0, minutes: 0 });
+  const { isAuthenticated } = useTaskManagerAuth();
+  const { isDark } = useTheme();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const fetchDailyStats = async () => {
+      try {
+        const response = await api.get('/tasks/stats/daily-timer');
+        if (response && response.data) {
+          setStats(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch daily stats:', error);
+      }
+    };
+
+    fetchDailyStats();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchDailyStats, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}>
+      <FiClock className="w-4 h-4 text-primary-500" />
+      <span className="text-xs font-semibold whitespace-nowrap">
+        Today: <span className={isDark ? 'text-white' : 'text-gray-900'}>{stats?.hours || 0}h {stats?.minutes || 0}m</span>
+      </span>
+    </div>
+  );
+};
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -311,6 +355,7 @@ const Layout = ({ children }) => {
             <div className="flex-1 lg:flex-none" />
 
             <div className="flex items-center space-x-4">
+              <DailyProgress />
               <button
                 onClick={toggleTheme}
                 className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

@@ -383,17 +383,18 @@ exports.bulkDeleteUsers = async (req, res, next) => {
  */
 exports.getUserStats = async (req, res, next) => {
     try {
-        const totalUsers = await TaskManagerUser.countDocuments({ isActive: true });
-        const totalAdmins = await TaskManagerUser.countDocuments({ role: 'admin', isActive: true });
-        const totalRegularUsers = await TaskManagerUser.countDocuments({ role: 'user', isActive: true });
-
-        // Users created in the last 30 days
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const newUsersThisMonth = await TaskManagerUser.countDocuments({
-            createdAt: { $gte: thirtyDaysAgo },
-            isActive: true,
-        });
+
+        const [totalUsers, totalAdmins, totalRegularUsers, newUsersThisMonth] = await Promise.all([
+            TaskManagerUser.countDocuments({ isActive: true }),
+            TaskManagerUser.countDocuments({ role: 'admin', isActive: true }),
+            TaskManagerUser.countDocuments({ role: 'user', isActive: true }),
+            TaskManagerUser.countDocuments({
+                createdAt: { $gte: thirtyDaysAgo },
+                isActive: true,
+            })
+        ]);
 
         res.json({
             success: true,

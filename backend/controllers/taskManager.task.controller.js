@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const TaskManagerTask = require('../models/taskManager.Task');
 const TaskManagerTeam = require('../models/taskManager.Team');
 const TaskManagerNotification = require('../models/taskManager.Notification');
@@ -1108,55 +1109,43 @@ exports.getDashboardStats = async (req, res, next) => {
       };
     }
 
-    // Get task counts
-    const totalTasks = await TaskManagerTask.countDocuments(taskQuery);
-    const todoTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      status: 'todo',
-    });
-    const inProgressTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      status: 'in-progress',
-    });
-    const doneTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      status: 'done',
-    });
-
-    // Get my assigned tasks
-    const myTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      assignedTo: req.user.id
-    });
-
-    // Get tasks created by me
-    const createdByMe = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      createdBy: req.user.id
-    });
-
-    // Get overdue tasks
-    const overdueTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      dueDate: { $lt: new Date() },
-      status: { $ne: 'done' },
-    });
-
-    // Get tasks due soon (next 7 days)
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const dueSoonTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      dueDate: { $gte: new Date(), $lte: sevenDaysFromNow },
-      status: { $ne: 'done' },
-    });
 
-    // Get my completed tasks count
-    const myDoneTasks = await TaskManagerTask.countDocuments({
-      ...taskQuery,
-      assignedTo: req.user.id,
-      status: 'done'
-    });
+    // Get task counts in parallel
+    const [
+      totalTasks,
+      todoTasks,
+      inProgressTasks,
+      doneTasks,
+      myTasks,
+      createdByMe,
+      overdueTasks,
+      dueSoonTasks,
+      myDoneTasks
+    ] = await Promise.all([
+      TaskManagerTask.countDocuments(taskQuery),
+      TaskManagerTask.countDocuments({ ...taskQuery, status: 'todo' }),
+      TaskManagerTask.countDocuments({ ...taskQuery, status: 'in-progress' }),
+      TaskManagerTask.countDocuments({ ...taskQuery, status: 'done' }),
+      TaskManagerTask.countDocuments({ ...taskQuery, assignedTo: req.user.id }),
+      TaskManagerTask.countDocuments({ ...taskQuery, createdBy: req.user.id }),
+      TaskManagerTask.countDocuments({
+        ...taskQuery,
+        dueDate: { $lt: new Date() },
+        status: { $ne: 'done' },
+      }),
+      TaskManagerTask.countDocuments({
+        ...taskQuery,
+        dueDate: { $gte: new Date(), $lte: sevenDaysFromNow },
+        status: { $ne: 'done' },
+      }),
+      TaskManagerTask.countDocuments({
+        ...taskQuery,
+        assignedTo: req.user.id,
+        status: 'done'
+      })
+    ]);
 
     res.json({
       success: true,
@@ -1172,6 +1161,51 @@ exports.getDashboardStats = async (req, res, next) => {
         dueSoonTasks,
         totalTeams: teams.length,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get daily time tracking stats for the logged-in user
+// @route   GET /api/tasks/stats/daily-timer
+// @access  Private
+exports.getDailyTimerStats = async (req, res, next) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = await TaskManagerTask.aggregate([
+      // Match all tasks that have the user in timeEntries
+      { $unwind: '$timeEntries' },
+      {
+        $match: {
+          'timeEntries.userId': new mongoose.Types.ObjectId(req.user.id),
+          'timeEntries.startTime': { $gte: today }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDuration: { $sum: '$timeEntries.duration' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const totalSeconds = stats.length > 0 ? stats[0].totalDuration : 0;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalSeconds,
+        hours,
+        minutes,
+        formatted: `${hours}h ${minutes}m`,
+        count: stats.length > 0 ? stats[0].count : 0
+      }
     });
   } catch (error) {
     next(error);
