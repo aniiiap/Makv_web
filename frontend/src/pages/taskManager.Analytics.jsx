@@ -55,9 +55,24 @@ const Analytics = () => {
       let url = '/tasks/stats/analytics';
       if (user?.role === 'admin' && selectedUserId) {
         url += `?userId=${selectedUserId}&timeRange=${timeRange}`;
+        
+        let startDate, endDate;
         if (timeRange === 'day' && selectedDate) {
-          url += `&date=${selectedDate}`;
+          const [year, month, day] = selectedDate.split('-');
+          startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+          endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+        } else {
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
+          if (timeRange === 'week') startDate.setDate(startDate.getDate() - 7);
+          else if (timeRange === 'year') startDate.setFullYear(startDate.getFullYear() - 1);
+          else startDate.setDate(startDate.getDate() - 30);
+          
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999);
         }
+        
+        url += `&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
       }
       const response = await api.get(url);
       setStats(response.data);

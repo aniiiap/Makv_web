@@ -859,26 +859,33 @@ exports.addComment = async (req, res, next) => {
 // @access  Private
 exports.getAnalyticsStats = async (req, res, next) => {
   try {
-    const { userId, timeRange, date } = req.query;
+    const { userId, timeRange, startDate, endDate } = req.query;
 
     // Determine Date Range
     let dateFilter = new Date();
-    dateFilter.setHours(0, 0, 0, 0);
-
     let endDateFilter = new Date();
 
-    if (timeRange === 'day' && date) {
-      dateFilter = new Date(date);
-      dateFilter.setHours(0, 0, 0, 0);
-      endDateFilter = new Date(dateFilter);
-      endDateFilter.setDate(endDateFilter.getDate() + 1);
-    } else if (timeRange === 'week') {
-      dateFilter.setDate(dateFilter.getDate() - 7);
-    } else if (timeRange === 'year') {
-      dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+    if (startDate && endDate) {
+      // Frontend sent exact ISO boundaries (respecting local timezone)
+      dateFilter = new Date(startDate);
+      endDateFilter = new Date(endDate);
     } else {
-      // Default to month (30 days)
-      dateFilter.setDate(dateFilter.getDate() - 30);
+      // Fallback if accessed via API directly without exact bounds
+      dateFilter.setHours(0, 0, 0, 0);
+      if (timeRange === 'day') {
+        const queryDate = req.query.date ? new Date(req.query.date) : new Date();
+        queryDate.setHours(0, 0, 0, 0);
+        dateFilter = new Date(queryDate);
+        endDateFilter = new Date(dateFilter);
+        endDateFilter.setDate(endDateFilter.getDate() + 1);
+      } else if (timeRange === 'week') {
+        dateFilter.setDate(dateFilter.getDate() - 7);
+      } else if (timeRange === 'year') {
+        dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+      } else {
+        // Default to month (30 days)
+        dateFilter.setDate(dateFilter.getDate() - 30);
+      }
     }
 
     // Feature 1: Admin User Progress Analytics
@@ -886,20 +893,39 @@ exports.getAnalyticsStats = async (req, res, next) => {
       // 1. Must be a Team or Client task (No personal tasks for analytics)
       // 2. User must be involved (assigned, created, or logged time)
       // 3. Must be active or modified within the timeRange to show "progress"
+      // For User Progress, we want to see tasks that were active in the period
+      // or tasks that are currently assigned to the user.
+      const dateCondition = (timeRange === 'day' || (startDate && endDate))
+        ? { $gte: dateFilter, $lte: endDateFilter } 
+        : { $gte: dateFilter };
+
       const taskQuery = {
         $and: [
           { $or: [{ team: { $ne: null } }, { client: { $ne: null } }] },
           {
             $or: [
-              { assignedTo: userId },
-              { createdBy: userId },
-              { 'timeEntries.userId': userId }
+              // 1. User logged time during this specific period
+              {
+                timeEntries: {
+                  $elemMatch: {
+                    userId: userId,
+                    $or: [
+                      { startTime: dateCondition },
+                      { endTime: dateCondition },
+                      { createdAt: dateCondition }
+                    ]
+                  }
+                }
+              },
+              // 2. User is assigned or creator, AND task was updated in this period
+              {
+                $and: [
+                  { $or: [{ assignedTo: userId }, { createdBy: userId }] },
+                  { updatedAt: dateCondition }
+                ]
+              }
             ]
-          },
-          // For User Progress, we want to see tasks that were active in the period
-          // or tasks that are currently assigned to the user.
-          // This ensures we don't miss recently finished tasks.
-          { updatedAt: timeRange === 'day' ? { $gte: dateFilter, $lt: endDateFilter } : { $gte: dateFilter } }
+          }
         ]
       };
 
@@ -917,12 +943,11 @@ exports.getAnalyticsStats = async (req, res, next) => {
           completedTasksCount++;
         }
 
-        // Calculate only the chosen user's time on this task in this period
         const userTimeEntries = task.timeEntries.filter(
           entry => entry.userId && 
                    entry.userId.toString() === userId.toString() &&
-                   (entry.endTime || entry.startTime) >= dateFilter &&
-                   (timeRange === 'day' ? (entry.endTime || entry.startTime) < endDateFilter : true)
+                   ((entry.endTime || entry.startTime || entry.createdAt) >= dateFilter) &&
+                   ((timeRange === 'day' || (startDate && endDate)) ? ((entry.endTime || entry.startTime || entry.createdAt) <= endDateFilter) : true)
         );
         const userTimeOnTask = userTimeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
 
@@ -1839,11 +1864,16 @@ exports.logTime = async (req, res, next) => {
 
     // Add time entry
     const now = new Date();
+    
+    // Feature: If an Admin logs time, they might be doing it on behalf of the assignee.
+    // If the task has an assignee, credit the assignee. Otherwise, credit the logger.
+    const targetUserId = req.body.userId || task.assignedTo || req.user.id;
+
     task.timeEntries.push({
       startTime: now,
       endTime: now,
       duration,
-      userId: req.user.id,
+      userId: targetUserId,
       description: description || '',
     });
 
