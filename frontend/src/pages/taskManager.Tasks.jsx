@@ -80,7 +80,30 @@ const Tasks = ({ openCreate = false }) => {
   // 1. Fetch teams once on mount or when user changes
   useEffect(() => {
     fetchTeams();
+    if (user?.role === 'admin') {
+      const fetchAllUsers = async () => {
+        try {
+          const res = await api.get('/clients/users');
+          setAllUsers(Array.isArray(res) ? res : []);
+        } catch (err) {
+          console.error('Error fetching all users:', err);
+        }
+      };
+      fetchAllUsers();
+    }
   }, [user]);
+
+  const allTeamMembers = useMemo(() => {
+    const map = new Map();
+    teams.forEach(t => {
+      t.members?.forEach(m => {
+        if (m.user && (m.user._id || m.user.id)) {
+          map.set(m.user._id || m.user.id, m.user);
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [teams]);
 
   // 2. Sync filters from URL searchParams
   useEffect(() => {
@@ -1002,6 +1025,24 @@ const Tasks = ({ openCreate = false }) => {
               >
                 <option value="">All Assignees</option>
                 <option value="me">Assigned to Me</option>
+                {filters.team && filters.team !== 'personal'
+                  ? getTeamMembers(filters.team).map((m) => (
+                      <option key={m.user._id || m.user.id} value={m.user._id || m.user.id}>
+                        {m.user.name}
+                      </option>
+                    ))
+                  : user?.role === 'admin' && allUsers.length > 0
+                    ? allUsers.map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.name}
+                        </option>
+                      ))
+                    : allTeamMembers.map((u) => (
+                        <option key={u._id || u.id} value={u._id || u.id}>
+                          {u.name}
+                        </option>
+                      ))
+                }
               </select>
             </div>
           )}

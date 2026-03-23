@@ -859,13 +859,21 @@ exports.addComment = async (req, res, next) => {
 // @access  Private
 exports.getAnalyticsStats = async (req, res, next) => {
   try {
-    const { userId, timeRange } = req.query;
+    const { userId, timeRange, date } = req.query;
 
     // Determine Date Range
-    const dateFilter = new Date();
+    let dateFilter = new Date();
     dateFilter.setHours(0, 0, 0, 0);
-    if (timeRange === 'week') {
-      dateFilter.setDate(dateFilter.setDate() - 7);
+
+    let endDateFilter = new Date();
+
+    if (timeRange === 'day' && date) {
+      dateFilter = new Date(date);
+      dateFilter.setHours(0, 0, 0, 0);
+      endDateFilter = new Date(dateFilter);
+      endDateFilter.setDate(endDateFilter.getDate() + 1);
+    } else if (timeRange === 'week') {
+      dateFilter.setDate(dateFilter.getDate() - 7);
     } else if (timeRange === 'year') {
       dateFilter.setFullYear(dateFilter.getFullYear() - 1);
     } else {
@@ -891,7 +899,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
           // For User Progress, we want to see tasks that were active in the period
           // or tasks that are currently assigned to the user.
           // This ensures we don't miss recently finished tasks.
-          { updatedAt: { $gte: dateFilter } }
+          { updatedAt: timeRange === 'day' ? { $gte: dateFilter, $lt: endDateFilter } : { $gte: dateFilter } }
         ]
       };
 
@@ -913,7 +921,8 @@ exports.getAnalyticsStats = async (req, res, next) => {
         const userTimeEntries = task.timeEntries.filter(
           entry => entry.userId && 
                    entry.userId.toString() === userId.toString() &&
-                   (entry.endTime || entry.startTime) >= dateFilter
+                   (entry.endTime || entry.startTime) >= dateFilter &&
+                   (timeRange === 'day' ? (entry.endTime || entry.startTime) < endDateFilter : true)
         );
         const userTimeOnTask = userTimeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
 
@@ -934,7 +943,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
         data: {
           isUserProgressMode: true,
           userId,
-          timeRange: timeRange === 'year' ? 'past year' : (timeRange === 'week' ? 'past week' : 'past month'),
+          timeRange: timeRange === 'year' ? 'past year' : (timeRange === 'week' ? 'past week' : (timeRange === 'day' ? 'selected day' : 'past month')),
           tasksWorkedOn,
           completedTasksCount,
           totalTimeSpent,

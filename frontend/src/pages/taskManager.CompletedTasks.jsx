@@ -296,6 +296,12 @@ const CompletedTasks = () => {
                       <FiCheckCircle className="w-3 h-3" />
                       Completed
                     </span>
+                    {task.isBillable && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                        <FiDollarSign className="w-3 h-3" />
+                        Billable
+                      </span>
+                    )}
                     {task.attachments?.length > 0 && (
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${isDark ? 'bg-primary-900/30 text-primary-400' : 'bg-primary-100 text-primary-700'}`}

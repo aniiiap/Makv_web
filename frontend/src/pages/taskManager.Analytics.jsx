@@ -24,7 +24,8 @@ const Analytics = () => {
   // User Progress Analytics State
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('day');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -35,7 +36,7 @@ const Analytics = () => {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, selectedUserId, timeRange]);
+  }, [isAuthenticated, selectedUserId, timeRange, selectedDate]);
 
   const fetchUsers = async () => {
     try {
@@ -54,6 +55,9 @@ const Analytics = () => {
       let url = '/tasks/stats/analytics';
       if (user?.role === 'admin' && selectedUserId) {
         url += `?userId=${selectedUserId}&timeRange=${timeRange}`;
+        if (timeRange === 'day' && selectedDate) {
+          url += `&date=${selectedDate}`;
+        }
       }
       const response = await api.get(url);
       setStats(response.data);
@@ -145,14 +149,13 @@ const Analytics = () => {
           <p className={`mt-2 ml-0 sm:ml-14 text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Insights into your task management and productivity</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 w-full lg:w-auto">
           {user?.role === 'admin' && (
-            <>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className={`w-full sm:w-auto px-4 py-2.5 rounded-lg border focus:ring-2 focus:ring-primary-500 outline-none transition-all ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                className={`w-full sm:w-auto px-3 py-2 rounded-lg border focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
               >
                 <option value="">All Users Overview</option>
                 {users.map(u => (
@@ -161,27 +164,38 @@ const Analytics = () => {
               </select>
 
               {selectedUserId && (
-                <select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className={`w-full sm:w-auto px-4 py-2.5 rounded-lg border focus:ring-2 focus:ring-primary-500 outline-none transition-all ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                >
-                  <option value="week">Past Week</option>
-                  <option value="month">Past Month</option>
-                  <option value="year">Past Year</option>
-                </select>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                  <select
+                    value={timeRange}
+                    onChange={(e) => setTimeRange(e.target.value)}
+                    className={`w-full sm:w-auto px-3 py-2 rounded-lg border focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  >
+                    <option value="day">Specific Day</option>
+                    <option value="week">Past Week</option>
+                    <option value="month">Past Month</option>
+                    <option value="year">Past Year</option>
+                  </select>
+                  
+                  {timeRange === 'day' && (
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className={`w-full sm:w-auto px-3 py-2 rounded-lg border focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm ${isDark ? 'bg-gray-800 border-gray-600 text-[color-scheme:dark] text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    />
+                  )}
+                </div>
               )}
-            </>
+            </div>
           )}
 
           <button
             onClick={fetchAnalytics}
-            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl font-medium w-full sm:w-auto justify-center"
+            className="flex items-center gap-1.5 sm:gap-2 px-4 py-2 text-sm bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all shadow hover:shadow-md font-medium w-full lg:w-auto justify-center whitespace-nowrap flex-shrink-0"
           >
-            <FiRefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline">Refresh Data</span>
-            <span className="sm:hidden">Refresh</span>
+            <FiRefreshCw className="w-4 h-4 flex-shrink-0" />
+            <span>Refresh</span>
           </button>
         </div>
       </div>
