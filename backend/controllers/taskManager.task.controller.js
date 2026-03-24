@@ -680,7 +680,32 @@ exports.updateTask = async (req, res, next) => {
       }
     }
 
-    task = await TaskManagerTask.findByIdAndUpdate(req.params.id, req.body, {
+    const updateOperators = { $set: { ...req.body } };
+
+    // Auto-stop orphaned timer if the task is marked as done
+    if (statusChanged && req.body.status === 'done' && task.activeTimer) {
+      let duration = task.activeTimer.accumulatedTime || 0;
+      if (!task.activeTimer.isPaused) {
+        const lastResumedAt = new Date(task.activeTimer.lastResumedAt || task.activeTimer.startTime);
+        duration += Math.floor((new Date() - lastResumedAt) / 1000);
+      }
+      
+      if (duration > 0) {
+        updateOperators.$push = {
+          timeEntries: {
+            startTime: task.activeTimer.startTime,
+            endTime: new Date(),
+            duration,
+            userId: task.activeTimer.userId,
+            description: 'Auto-saved timer (Task marked as Done)'
+          }
+        };
+        updateOperators.$inc = { timeSpent: duration };
+      }
+      updateOperators.$unset = { activeTimer: 1 };
+    }
+
+    task = await TaskManagerTask.findByIdAndUpdate(req.params.id, updateOperators, {
       new: true,
       runValidators: true,
     })
@@ -917,11 +942,17 @@ exports.getAnalyticsStats = async (req, res, next) => {
                   }
                 }
               },
-              // 2. User is assigned or creator, AND task was updated in this period
+              // 2. User is assigned or creator, AND task was updated OR created in this period
               {
                 $and: [
                   { $or: [{ assignedTo: userId }, { createdBy: userId }] },
-                  { updatedAt: dateCondition }
+                  { 
+                    $or: [
+                      { updatedAt: dateCondition },
+                      { createdAt: dateCondition },
+                      { 'activeTimer.startTime': dateCondition }
+                    ]
+                  }
                 ]
               }
             ]
@@ -929,7 +960,9 @@ exports.getAnalyticsStats = async (req, res, next) => {
         ]
       };
 
-      const tasks = await TaskManagerTask.find(taskQuery).select('title status timeEntries assignedTo updatedAt');
+      const tasks = await TaskManagerTask.find(taskQuery)
+        .populate('assignedTo', 'name')
+        .select('title status timeEntries assignedTo updatedAt timeSpent');
 
       let totalTimeSpent = 0;
       let tasksWorkedOn = tasks.length;
@@ -953,13 +986,27 @@ exports.getAnalyticsStats = async (req, res, next) => {
 
         totalTimeSpent += userTimeOnTask;
 
+        const allUserEntries = task.timeEntries.filter(e => e.userId && e.userId.toString() === userId.toString());
+        let lastWorkedOn = null;
+        if (allUserEntries.length > 0) {
+            const latestEntry = allUserEntries.sort((a, b) => {
+                const dateA = a.endTime || a.startTime || a.createdAt;
+                const dateB = b.endTime || b.startTime || b.createdAt;
+                return new Date(dateB) - new Date(dateA);
+            })[0];
+            lastWorkedOn = latestEntry.endTime || latestEntry.startTime || latestEntry.createdAt;
+        }
+
         userTaskDetails.push({
           id: task._id,
           title: task.title,
           status: task.status,
           userTimeSpent: userTimeOnTask,
+          totalTimeSpentOverall: task.timeSpent || 0,
           updatedAt: task.updatedAt,
-          isAssignedToUser: task.assignedTo && task.assignedTo.toString() === userId.toString()
+          isAssignedToUser: task.assignedTo && task.assignedTo._id.toString() === userId.toString(),
+          assignedToName: task.assignedTo ? task.assignedTo.name : 'Unassigned',
+          lastWorkedOn: lastWorkedOn
         });
       });
 

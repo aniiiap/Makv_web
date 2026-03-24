@@ -422,8 +422,12 @@ const Tasks = ({ openCreate = false }) => {
       const updatedTask = response.data;
       setCurrentTaskDetails(updatedTask);
 
-      // Update global timer context
-      startTimer(updatedTask);
+      // Update global timer context - if DB had a running timer, sync it safely
+      if (updatedTask.activeTimer && updatedTask.activeTimer.accumulatedTime > 0) {
+        syncTimer(updatedTask, updatedTask.activeTimer);
+      } else {
+        startTimer(updatedTask);
+      }
 
       fetchActivities(editingTask);
     } catch (error) {
@@ -454,7 +458,7 @@ const Tasks = ({ openCreate = false }) => {
     try {
       const response = await api.post(`/tasks/${editingTask}/timer/pause`);
       setCurrentTaskDetails(response.data);
-      pauseLocalTimer();
+      syncTimer(response.data, response.data.activeTimer);
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to pause timer');
     }
@@ -465,7 +469,7 @@ const Tasks = ({ openCreate = false }) => {
     try {
       const response = await api.post(`/tasks/${editingTask}/timer/resume`);
       setCurrentTaskDetails(response.data);
-      resumeLocalTimer();
+      syncTimer(response.data, response.data.activeTimer);
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to resume timer');
     }
@@ -1702,50 +1706,88 @@ const Tasks = ({ openCreate = false }) => {
 
                 {/* Timer controls */}
                 <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  {(isTimerRunning || isPaused) && timerActiveTask && timerActiveTask._id.toString() === editingTask.toString() ? (
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <div className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {formatTime(timerElapsedTime)}
+                  {(() => {
+                    const isCurrentlyActiveInContext = (isTimerRunning || isPaused) && timerActiveTask && timerActiveTask._id.toString() === editingTask.toString();
+                    const taskHasDBTimer = currentTaskDetails?.activeTimer && currentTaskDetails.activeTimer.userId === user._id;
+
+                    if (isCurrentlyActiveInContext) {
+                      return (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <div className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {formatTime(timerElapsedTime)}
+                            </div>
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{isPaused ? 'Timer paused' : 'Timer running...'}</p>
+                          </div>
+                          <div className="flex items-center justify-center gap-3">
+                            {isPaused ? (
+                              <button
+                                onClick={handleResumeTimer}
+                                className="w-auto px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                              >
+                                <FiPlay className="w-3.5 h-3.5" />
+                                Resume
+                              </button>
+                            ) : (
+                              <button
+                                onClick={handlePauseTimer}
+                                className="w-auto px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                              >
+                                <FiPause className="w-3.5 h-3.5" />
+                                Pause
+                              </button>
+                            )}
+                            <button
+                              onClick={handleStopTimer}
+                              className="w-auto px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                            >
+                              <FiSquare className="w-3.5 h-3.5" />
+                              Stop
+                            </button>
+                          </div>
                         </div>
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{isPaused ? 'Timer paused' : 'Timer running...'}</p>
-                      </div>
-                      <div className="flex items-center justify-center gap-3">
-                        {isPaused ? (
-                          <button
-                            onClick={handleResumeTimer}
-                            className="w-auto px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
-                          >
-                            <FiPlay className="w-3.5 h-3.5" />
-                            Resume
-                          </button>
-                        ) : (
-                          <button
-                            onClick={handlePauseTimer}
-                            className="w-auto px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
-                          >
-                            <FiPause className="w-3.5 h-3.5" />
-                            Pause
-                          </button>
-                        )}
+                      );
+                    } else if (taskHasDBTimer) {
+                      // Timer is abandoned by context but preserved in the Database! Safely allow resuming/stopping it.
+                      const isDBPaused = currentTaskDetails.activeTimer.isPaused;
+                      return (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <div className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {formatTime(currentTaskDetails.activeTimer.accumulatedTime || 0)}
+                            </div>
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{isDBPaused ? 'Timer paused (Saved)' : 'Timer running in background...'}</p>
+                          </div>
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={isDBPaused ? handleResumeTimer : handlePauseTimer}
+                              className={`w-auto px-3 py-1.5 ${isDBPaused ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white rounded-lg transition-colors text-xs font-medium flex items-center justify-center gap-1.5`}
+                            >
+                              {isDBPaused ? <FiPlay className="w-3.5 h-3.5" /> : <FiPause className="w-3.5 h-3.5" />}
+                              {isDBPaused ? 'Resume' : 'Pause'}
+                            </button>
+                            <button
+                              onClick={handleStopTimer}
+                              className="w-auto px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                            >
+                              <FiSquare className="w-3.5 h-3.5" />
+                              Stop
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
                         <button
-                          onClick={handleStopTimer}
-                          className="w-auto px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                          onClick={handleStartTimer}
+                          className="w-auto px-2.5 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 mx-auto"
                         >
-                          <FiSquare className="w-3.5 h-3.5" />
-                          Stop
+                          <FiPlay className="w-3.5 h-3.5" />
+                          Start Timer
                         </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleStartTimer}
-                      className="w-auto px-2.5 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 mx-auto"
-                    >
-                      <FiPlay className="w-3.5 h-3.5" />
-                      Start Timer
-                    </button>
-                  )}
+                      );
+                    }
+                  })()}
                 </div>
 
                 {/* Manual time entry */}

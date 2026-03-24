@@ -246,7 +246,8 @@ const Analytics = () => {
                   <tr className={isDark ? 'bg-gray-900/50 text-gray-400' : 'bg-gray-50 text-gray-500'}>
                     <th className="py-3 px-4 sm:px-6 font-semibold text-sm">Task Title</th>
                     <th className="py-3 px-4 sm:px-6 font-semibold text-sm">Status</th>
-                    <th className="py-3 px-4 sm:px-6 font-semibold text-sm">User Time Logged</th>
+                    <th className="py-3 px-4 sm:px-6 font-semibold text-sm">User Time (Selected Range)</th>
+                    <th className="py-3 px-4 sm:px-6 font-semibold text-sm">Total Time (All History)</th>
                     <th className="py-3 px-4 sm:px-6 font-semibold text-sm">Currently Assigned</th>
                   </tr>
                 </thead>
@@ -266,20 +267,28 @@ const Analytics = () => {
                         </span>
                       </td>
                       <td className={`py-3 sm:py-4 px-4 sm:px-6 text-sm font-medium ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                        {formatTime(task.userTimeSpent)}
+                        {timeRange === 'day' && task.userTimeSpent === 0 ? '-' : formatTime(task.userTimeSpent)}
+                        {timeRange === 'day' && task.userTimeSpent === 0 && task.lastWorkedOn && (
+                          <div className={`text-xs mt-1 font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Last worked: {new Date(task.lastWorkedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        )}
+                      </td>
+                      <td className={`py-3 sm:py-4 px-4 sm:px-6 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {!task.totalTimeSpentOverall || task.totalTimeSpentOverall === 0 ? '-' : formatTime(task.totalTimeSpentOverall)}
                       </td>
                       <td className="py-3 sm:py-4 px-4 sm:px-6 text-sm">
                         {task.isAssignedToUser ? (
                           <span className="text-green-500 font-medium">Yes</span>
                         ) : (
-                          <span className="text-gray-400">No</span>
+                          <span className="text-gray-500">No ({task.assignedToName})</span>
                         )}
                       </td>
                     </tr>
                   ))}
                   {stats.taskDetails.length === 0 && (
                     <tr>
-                      <td colSpan="4" className={`py-8 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <td colSpan="5" className={`py-8 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         No tasks worked on in this time period.
                       </td>
                     </tr>
