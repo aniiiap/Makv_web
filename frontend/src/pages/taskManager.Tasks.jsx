@@ -343,10 +343,10 @@ const Tasks = ({ openCreate = false }) => {
       // Check if timer is running and it belongs to the current user
       if (response.data.activeTimer) {
         // If the timer user is populated object, compare ._id. If string, compare directly.
-        const timerUserId = response.data.activeTimer.user?._id || response.data.activeTimer.user;
-        const currentUserId = user?._id || user?.id;
+        const timerUserId = (response.data.activeTimer.userId?._id || response.data.activeTimer.userId || response.data.activeTimer.user?._id || response.data.activeTimer.user)?.toString();
+        const currentUserId = (user?._id || user?.id)?.toString();
 
-        if (timerUserId === currentUserId) {
+        if (timerUserId && currentUserId && timerUserId === currentUserId) {
           // If context is empty or different, sync it
           if (!timerActiveTask || timerActiveTask._id !== response.data._id) {
             syncTimer(response.data, response.data.activeTimer);
@@ -1708,7 +1708,12 @@ const Tasks = ({ openCreate = false }) => {
                 <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   {(() => {
                     const isCurrentlyActiveInContext = (isTimerRunning || isPaused) && timerActiveTask && timerActiveTask._id.toString() === editingTask.toString();
-                    const taskHasDBTimer = currentTaskDetails?.activeTimer && currentTaskDetails.activeTimer.userId === user._id;
+                    const taskHasDBTimer = currentTaskDetails?.activeTimer && 
+                                           (currentTaskDetails.activeTimer.userId || currentTaskDetails.activeTimer.user) && 
+                                           (currentTaskDetails.activeTimer.userId?.toString() === user?._id?.toString() || 
+                                            currentTaskDetails.activeTimer.userId?.toString() === user?.id?.toString() ||
+                                            currentTaskDetails.activeTimer.user?.toString() === user?._id?.toString() ||
+                                            currentTaskDetails.activeTimer.user?.toString() === user?.id?.toString());
 
                     if (isCurrentlyActiveInContext) {
                       return (
