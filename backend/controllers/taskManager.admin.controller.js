@@ -1,4 +1,6 @@
 const TaskManagerUser = require('../models/TaskManagerUser');
+const TaskManagerTeam = require('../models/taskManager.Team');
+const TaskManagerTask = require('../models/taskManager.Task');
 const { generateTemporaryPassword } = require('../utils/passwordGenerator');
 const { sendInvitationEmail } = require('../utils/taskManager.emailService');
 
@@ -309,6 +311,18 @@ exports.permanentlyDeleteUser = async (req, res, next) => {
             });
         }
 
+        // 1. Cleanup: Remove user from all teams
+        await TaskManagerTeam.updateMany(
+            { 'members.user': req.params.id },
+            { $pull: { members: { user: req.params.id } } }
+        );
+
+        // 2. Cleanup: Clear assignments in tasks (Keep createdBy for history, but UI will handle nulls)
+        await TaskManagerTask.updateMany(
+            { assignedTo: req.params.id },
+            { $set: { assignedTo: null } }
+        );
+
         // Permanently delete the user
         await TaskManagerUser.findByIdAndDelete(req.params.id);
 
@@ -357,6 +371,18 @@ exports.bulkDeleteUsers = async (req, res, next) => {
                     results.failed.push({ userId, reason: 'Cannot delete your own account' });
                     continue;
                 }
+
+                // 1. Cleanup: Remove user from all teams
+                await TaskManagerTeam.updateMany(
+                    { 'members.user': userId },
+                    { $pull: { members: { user: userId } } }
+                );
+
+                // 2. Cleanup: Clear assignments in tasks
+                await TaskManagerTask.updateMany(
+                    { assignedTo: userId },
+                    { $set: { assignedTo: null } }
+                );
 
                 await TaskManagerUser.findByIdAndDelete(userId);
                 results.success.push(userId);

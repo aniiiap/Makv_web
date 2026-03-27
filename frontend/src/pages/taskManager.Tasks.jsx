@@ -97,7 +97,7 @@ const Tasks = ({ openCreate = false }) => {
     const map = new Map();
     teams.forEach(t => {
       t.members?.forEach(m => {
-        if (m.user && (m.user._id || m.user.id)) {
+        if (m.user && (m.user._id || m.user.id) && m.user.isActive !== false) {
           map.set(m.user._id || m.user.id, m.user);
         }
       });
@@ -736,8 +736,8 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   const getTeamMembers = (teamId) => {
-    const team = teams.find((t) => t._id === teamId);
-    return team?.members || [];
+    const team = teams.find((t) => (t._id || t.id)?.toString() === teamId?.toString());
+    return (team?.members || []).filter(m => m.user && m.user.isActive !== false);
   };
 
   const handleFileUpload = async (e) => {
@@ -1031,8 +1031,8 @@ const Tasks = ({ openCreate = false }) => {
                 <option value="me">Assigned to Me</option>
                 {filters.team && filters.team !== 'personal'
                   ? getTeamMembers(filters.team).map((m) => (
-                      <option key={m.user._id || m.user.id} value={m.user._id || m.user.id}>
-                        {m.user.name}
+                      <option key={m.user?._id || m.user?.id} value={m.user?._id || m.user?.id}>
+                        {m.user?.name || 'Deleted User'}
                       </option>
                     ))
                   : user?.role === 'admin' && allUsers.length > 0
@@ -1381,8 +1381,8 @@ const Tasks = ({ openCreate = false }) => {
                       <option value="">Unassigned</option>
                       {newTask.team ? (
                         getTeamMembers(newTask.team).map((member) => (
-                          <option key={member.user._id} value={member.user._id}>
-                            {member.user.name}
+                          <option key={member.user?._id || member.user?.id} value={member.user?._id || member.user?.id}>
+                            {member.user?.name || 'Deleted User'}
                           </option>
                         ))
                       ) : editingClientTask && allUsers.length > 0 ? (
