@@ -4,12 +4,33 @@ import { Link } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import { FiPlus, FiDownload, FiFileText, FiRefreshCw } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 const BillList = () => {
     const { isDark } = useTheme();
     const [bills, setBills] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const handleExportExcel = () => {
+        if (bills.length === 0) {
+            toast.error('No invoices to export.');
+            return;
+        }
+
+        const excelData = bills.map(bill => ({
+            'GSTIN/UIN of Recipient': bill.buyerDetails?.gstin || 'N/A',
+            'Invoice Number': bill.invoiceNo || '',
+            'Invoice date': bill.date ? new Date(bill.date).toLocaleDateString('en-GB') : '',
+            'Invoice Value': bill.taxDetails?.totalAmount || bill.totalAmount || 0,
+            'Taxable Value': bill.taxDetails?.taxableAmount || bill.totalAmount || 0
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Invoices");
+        XLSX.writeFile(workbook, `Invoices_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     const fetchBills = async () => {
         try {
@@ -47,6 +68,18 @@ const BillList = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleExportExcel}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-md font-medium ${isDark
+                            ? 'bg-gray-700 border border-gray-600 text-gray-200 hover:bg-gray-600'
+                            : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                        title="Export to Excel"
+                    >
+                        <FiDownload className="w-5 h-5" />
+                        <span className="hidden sm:inline">Export to Excel</span>
+                        <span className="sm:hidden">Export</span>
+                    </button>
                     <Link
                         to="/taskflow/bills/create"
                         className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 shadow-md transform hover:scale-105 transition-all"

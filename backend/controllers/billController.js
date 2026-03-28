@@ -302,7 +302,7 @@ const generatePDF = async (billData) => {
                    <tr>
                       <td style="border: none; padding: 1px 15px 1px 0px;">Bank Name</td>
                       <td style="border: none; padding: 1px;">:</td>
-                      <td style="border: none; padding: 1px;" class="bold">INDUSLND BANK 1785</td>
+                      <td style="border: none; padding: 1px;" class="bold">INDUSLND BANK</td>
                    </tr>
                    <tr>
                       <td style="border: none; padding: 1px 15px 1px 0px;">A/c No.</td>
@@ -488,7 +488,7 @@ exports.createBill = async (req, res) => {
         // We need an Office User ID (uploadedBy) for the document. 
         // We'll try to find the office user who matches the Task Manager user's email.
         const officeUser = await User.findOne({ email: req.user.email });
-        
+
         // Robust fallback: find any admin if the current user profile doesn't exist in office users
         const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
 
@@ -1059,7 +1059,7 @@ const generatePaySlipPDF = async (data) => {
                 <tr>
                   <td style="border: none; padding: 1px 12px 1px 0;">Bank Name</td>
                   <td style="border: none; padding: 1px;">:</td>
-                  <td style="border: none; padding: 1px;" class="bold">INDUSIND BANK 1785</td>
+                  <td style="border: none; padding: 1px;" class="bold">INDUSIND BANK</td>
                 </tr>
                 <tr>
                   <td style="border: none; padding: 1px 12px 1px 0;">A/c No.</td>
