@@ -5,6 +5,8 @@ import adminApi from '../utils/adminApi';
 
 const ManageUsers = () => {
     const [users, setUsers] = useState([]);
+    const [teams, setTeams] = useState([]);
+    const [unassignedUsers, setUnassignedUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUsers, setSelectedUsers] = useState(new Set());
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -16,9 +18,11 @@ const ManageUsers = () => {
     // Single user creation
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
+    const [createTeamId, setCreateTeamId] = useState('');
 
     // Bulk user creation
     const [bulkUsers, setBulkUsers] = useState('');
+    const [bulkTeamId, setBulkTeamId] = useState('');
 
     useEffect(() => {
         fetchUsers();
@@ -27,8 +31,27 @@ const ManageUsers = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await adminApi.getAllUsers();
-            setUsers(response.users || []);
+            const response = await adminApi.getUsersByTeam();
+            const fetchedTeams = response.teams || [];
+            const fetchedUnassigned = response.unassignedUsers || [];
+            
+            setTeams(fetchedTeams);
+            setUnassignedUsers(fetchedUnassigned);
+
+            // Extract all unique users for bulk actions and state management
+            const allUsersMap = new Map();
+            fetchedTeams.forEach(team => {
+                team.members.forEach(member => {
+                    if (member.user) {
+                        allUsersMap.set(member.user._id, member.user);
+                    }
+                });
+            });
+            fetchedUnassigned.forEach(user => {
+                allUsersMap.set(user._id, user);
+            });
+            
+            setUsers(Array.from(allUsersMap.values()));
         } catch (error) {
             console.error('Error fetching users:', error);
             setError('Failed to fetch users');
@@ -43,10 +66,11 @@ const ManageUsers = () => {
         setSuccess('');
 
         try {
-            await adminApi.createUser(newUserName, newUserEmail);
+            await adminApi.createUser(newUserName, newUserEmail, createTeamId);
             setSuccess('User created successfully! Invitation email sent.');
             setNewUserName('');
             setNewUserEmail('');
+            setCreateTeamId('');
             setShowCreateModal(false);
             fetchUsers();
         } catch (error) {
@@ -74,9 +98,10 @@ const ManageUsers = () => {
                 return;
             }
 
-            const response = await adminApi.createBulkUsers(usersArray);
+            const response = await adminApi.createBulkUsers(usersArray, bulkTeamId);
             setSuccess(`Created ${response.results.success.length} users. ${response.results.failed.length} failed.`);
             setBulkUsers('');
+            setBulkTeamId('');
             setShowBulkCreateModal(false);
             fetchUsers();
         } catch (error) {
@@ -207,112 +232,53 @@ const ManageUsers = () => {
                     </div>
                 )}
 
-                {/* Users Table */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedUsers.size === users.length && users.length > 0}
-                                        onChange={handleSelectAll}
-                                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                    />
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    User
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Role
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Created
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {users.map((user) => (
-                                <tr key={user._id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedUsers.has(user._id)}
-                                            onChange={() => handleToggleUserSelection(user._id)}
-                                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                                                <span className="text-primary-600 font-medium">
-                                                    {user.name.charAt(0).toUpperCase()}
-                                                </span>
-                                            </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">{user.email}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <select
-                                            value={user.role}
-                                            onChange={(e) => handleUpdateRole(user._id, e.target.value)}
-                                            className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                                        >
-                                            <option value="user">User</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {user.isFirstLogin ? (
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                                Pending Setup
-                                            </span>
-                                        ) : (
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                Active
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {new Date(user.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            onClick={async () => {
-                                                if (confirm('Are you sure you want to delete this user?')) {
-                                                    try {
-                                                        await adminApi.permanentlyDeleteUser(user._id);
-                                                        setSuccess('User deleted successfully');
-                                                        fetchUsers();
-                                                    } catch (error) {
-                                                        setError('Failed to delete user');
-                                                    }
-                                                }
-                                            }}
-                                            className="text-red-600 hover:text-red-900"
-                                        >
-                                            <FiTrash2 className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                {/* Users Grouped by Team */}
+                {teams.map((team) => (
+                    <div key={team._id} className="mb-10">
+                        <div className="flex items-center gap-2 mb-4 px-2">
+                            <div className="p-1.5 bg-primary-100 rounded-lg">
+                                <FiUsers className="w-5 h-5 text-primary-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-gray-900">{team.name} Team</h2>
+                            <span className="text-sm font-normal text-gray-500 ml-2">({team.members.length} members)</span>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                            <UserTable 
+                                users={team.members.map(m => m.user).filter(Boolean)} 
+                                selectedUsers={selectedUsers}
+                                handleToggleUserSelection={handleToggleUserSelection}
+                                handleUpdateRole={handleUpdateRole}
+                                fetchUsers={fetchUsers}
+                                setSuccess={setSuccess}
+                                setError={setError}
+                            />
+                        </div>
+                    </div>
+                ))}
+
+                {/* Unassigned Users */}
+                {unassignedUsers.length > 0 && (
+                    <div className="mb-10">
+                        <div className="flex items-center gap-2 mb-4 px-2">
+                            <div className="p-1.5 bg-gray-100 rounded-lg">
+                                <FiUser className="w-5 h-5 text-gray-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-gray-900">Unassigned Users / Others</h2>
+                            <span className="text-sm font-normal text-gray-500 ml-2">({unassignedUsers.length} users)</span>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                            <UserTable 
+                                users={unassignedUsers} 
+                                selectedUsers={selectedUsers}
+                                handleToggleUserSelection={handleToggleUserSelection}
+                                handleUpdateRole={handleUpdateRole}
+                                fetchUsers={fetchUsers}
+                                setSuccess={setSuccess}
+                                setError={setError}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Create User Modal */}
@@ -354,6 +320,23 @@ const ManageUsers = () => {
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                     placeholder="john@example.com"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Assign to Team (Optional)
+                                </label>
+                                <select
+                                    value={createTeamId}
+                                    onChange={(e) => setCreateTeamId(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                >
+                                    <option value="">No Team (Unassigned)</option>
+                                    {teams.map(team => (
+                                        <option key={team._id} value={team._id}>
+                                            {team.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
                                 <p className="text-sm text-blue-700">
@@ -407,6 +390,23 @@ const ManageUsers = () => {
                                     placeholder="John Doe, john@example.com&#10;Jane Smith, jane@example.com&#10;Bob Johnson, bob@example.com"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Assign All to Team (Optional)
+                                </label>
+                                <select
+                                    value={bulkTeamId}
+                                    onChange={(e) => setBulkTeamId(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                >
+                                    <option value="">No Team (Unassigned)</option>
+                                    {teams.map(team => (
+                                        <option key={team._id} value={team._id}>
+                                            {team.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
                                 <p className="text-sm text-blue-700">
                                     <strong>Format:</strong> Name, Email (one per line)<br />
@@ -437,3 +437,107 @@ const ManageUsers = () => {
 };
 
 export default ManageUsers;
+
+// Sub-component for the user table to keep the main component clean
+const UserTable = ({ users, selectedUsers, handleToggleUserSelection, handleUpdateRole, fetchUsers, setSuccess, setError }) => {
+    return (
+        <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+                <tr>
+                    <th className="px-6 py-3 text-left w-10">
+                        {/* Select All checkbox per table could be added, but for now we keep it simple */}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Role
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+                {users.map((user) => (
+                    <tr key={user._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                            <input
+                                type="checkbox"
+                                checked={selectedUsers.has(user._id)}
+                                onChange={() => handleToggleUserSelection(user._id)}
+                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                                <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                    <span className="text-primary-600 font-medium">
+                                        {user.name.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{user.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            <select
+                                value={user.role}
+                                onChange={(e) => handleUpdateRole(user._id, e.target.value)}
+                                className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                            >
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            {user.isFirstLogin ? (
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                    Pending Setup
+                                </span>
+                            ) : (
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    Active
+                                </span>
+                            )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(user.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                                onClick={async () => {
+                                    if (confirm('Are you sure you want to delete this user?')) {
+                                        try {
+                                            await adminApi.permanentlyDeleteUser(user._id);
+                                            setSuccess('User deleted successfully');
+                                            fetchUsers();
+                                        } catch (error) {
+                                            setError('Failed to delete user');
+                                        }
+                                    }
+                                }}
+                                className="text-red-600 hover:text-red-900"
+                            >
+                                <FiTrash2 className="w-4 h-4" />
+                            </button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
+};

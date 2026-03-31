@@ -11,6 +11,7 @@ const {
     permanentlyDeleteUser,
     bulkDeleteUsers,
     getUserStats,
+    getUsersByTeam,
 } = require('../controllers/taskManager.admin.controller');
 
 // All routes require authentication and admin role
@@ -21,6 +22,7 @@ router.post('/users', createUser);
 router.post('/users/bulk', createBulkUsers);
 router.post('/users/bulk-delete', bulkDeleteUsers);
 router.get('/users', getAllUsers);
+router.get('/users-by-team', getUsersByTeam);
 router.get('/stats', getUserStats);
 router.patch('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deactivateUser);

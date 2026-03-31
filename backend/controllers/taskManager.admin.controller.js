@@ -11,7 +11,7 @@ const { sendInvitationEmail } = require('../utils/taskManager.emailService');
  */
 exports.createUser = async (req, res, next) => {
     try {
-        const { name, email } = req.body;
+        const { name, email, teamId } = req.body;
 
         // Validate input
         if (!name || !email) {
@@ -45,6 +45,13 @@ exports.createUser = async (req, res, next) => {
             emailVerified: false,
             isActive: true, // Ensure user is active
         });
+
+        // Add user to team if teamId is provided
+        if (teamId) {
+            await TaskManagerTeam.findByIdAndUpdate(teamId, {
+                $addToSet: { members: { user: user._id, role: 'member' } }
+            });
+        }
 
         // Send invitation email
         try {
@@ -84,7 +91,7 @@ exports.createUser = async (req, res, next) => {
  */
 exports.createBulkUsers = async (req, res, next) => {
     try {
-        const { users } = req.body; // Array of { name, email }
+        const { users, teamId } = req.body; // Array of { name, email }, optional teamId
 
         if (!users || !Array.isArray(users) || users.length === 0) {
             return res.status(400).json({
@@ -146,6 +153,13 @@ exports.createBulkUsers = async (req, res, next) => {
                     name: user.name,
                     email: user.email,
                 });
+
+                // Add user to team if teamId is provided
+                if (teamId) {
+                    await TaskManagerTeam.findByIdAndUpdate(teamId, {
+                        $addToSet: { members: { user: user._id, role: 'member' } }
+                    });
+                }
             } catch (error) {
                 results.failed.push({ email: userData.email, reason: error.message });
             }
@@ -433,6 +447,46 @@ exports.getUserStats = async (req, res, next) => {
         });
     } catch (error) {
         console.error('Get user stats error:', error);
+        next(error);
+    }
+};
+
+/**
+ * @desc    Get all users grouped by team
+ * @route   GET /api/taskflow/admin/users-by-team
+ * @access  Private/Admin
+ */
+exports.getUsersByTeam = async (req, res, next) => {
+    try {
+        const teams = await TaskManagerTeam.find({ isActive: true })
+            .populate('members.user', 'name email role isActive isFirstLogin createdAt')
+            .sort({ name: 1 });
+
+        // Find all active users to identify those not in any team
+        const allUsers = await TaskManagerUser.find({ isActive: true })
+            .select('-password')
+            .sort({ createdAt: -1 });
+
+        // Create a set of user IDs who are in at least one team
+        const userIdsInTeams = new Set();
+        teams.forEach(team => {
+            team.members.forEach(member => {
+                if (member.user && member.user._id) {
+                    userIdsInTeams.add(member.user._id.toString());
+                }
+            });
+        });
+
+        // Filter out users who are already in teams to get "Unassigned" users
+        const unassignedUsers = allUsers.filter(user => !userIdsInTeams.has(user._id.toString()));
+
+        res.json({
+            success: true,
+            teams,
+            unassignedUsers
+        });
+    } catch (error) {
+        console.error('Get users by team error:', error);
         next(error);
     }
 };

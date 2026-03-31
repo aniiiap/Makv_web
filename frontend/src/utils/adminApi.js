@@ -4,15 +4,15 @@ const API_BASE = '/admin';
 
 export const adminApi = {
     // Create new user
-    createUser: async (name, email) => {
+    createUser: async (name, email, teamId) => {
         console.log('Creating user at:', `${API_BASE}/users`);
-        const response = await api.post(`${API_BASE}/users`, { name, email });
+        const response = await api.post(`${API_BASE}/users`, { name, email, teamId });
         return response;
     },
 
     // Create multiple users at once
-    createBulkUsers: async (users) => {
-        const response = await api.post(`${API_BASE}/users/bulk`, { users });
+    createBulkUsers: async (users, teamId) => {
+        const response = await api.post(`${API_BASE}/users/bulk`, { users, teamId });
         return response;
     },
 
@@ -22,6 +22,13 @@ export const adminApi = {
         const response = await api.get(`${API_BASE}/users`, {
             params: { page, limit },
         });
+        return response;
+    },
+
+    // Get users grouped by team
+    getUsersByTeam: async () => {
+        console.log('Fetching users by team from:', `${API_BASE}/users-by-team`);
+        const response = await api.get(`${API_BASE}/users-by-team`);
         return response;
     },
 
