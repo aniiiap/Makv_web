@@ -9,6 +9,7 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
     { id: 'todo', title: 'To Do', color: 'bg-gray-100' },
     { id: 'in-progress', title: 'In Progress', color: 'bg-blue-100' },
     { id: 'in-review', title: 'In Review', color: 'bg-purple-100' },
+    { id: 'client-pending', title: 'Client Pending', color: 'bg-orange-100' },
     { id: 'done', title: 'Done', color: 'bg-green-100' },
   ];
 

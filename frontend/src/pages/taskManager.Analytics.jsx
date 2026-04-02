@@ -121,6 +121,7 @@ const Analytics = () => {
     { name: 'To Do', value: stats.statusBreakdown?.todo || 0 },
     { name: 'In Progress', value: stats.statusBreakdown?.inProgress || 0 },
     { name: 'In Review', value: stats.statusBreakdown?.inReview || 0 },
+    { name: 'Client Pending', value: stats.statusBreakdown?.clientPending || 0 },
     { name: 'Done', value: stats.statusBreakdown?.done || 0 },
   ];
 
@@ -260,9 +261,10 @@ const Analytics = () => {
                       <td className="py-3 sm:py-4 px-4 sm:px-6 text-sm">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
                           ${task.status === 'done' ? 'bg-green-100 text-green-800' :
-                            task.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
-                              task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                                'bg-gray-100 text-gray-800'}`}>
+                            task.status === 'in-review' ? 'bg-purple-100 text-purple-800' :
+                              task.status === 'client-pending' ? 'bg-orange-100 text-orange-800' :
+                                task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'}`}>
                           {task.status.replace('-', ' ')}
                         </span>
                       </td>

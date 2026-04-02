@@ -205,7 +205,7 @@ const Tasks = ({ openCreate = false }) => {
       if (filters.status) {
         params.status = filters.status;
       } else {
-        params.status = 'todo,in-progress,in-review';
+        params.status = 'todo,in-progress,in-review,client-pending';
       }
 
       const filteredTeam = teams.find(t => t._id === filters.team);
@@ -703,6 +703,7 @@ const Tasks = ({ openCreate = false }) => {
         todo: 'bg-gray-700 text-gray-200',
         'in-progress': 'bg-blue-900 text-blue-200',
         'in-review': 'bg-purple-900 text-purple-200',
+        'client-pending': 'bg-orange-900 text-orange-200',
         done: 'bg-green-900 text-green-200',
       };
       return colors[status] || colors.todo;
@@ -711,6 +712,7 @@ const Tasks = ({ openCreate = false }) => {
       todo: 'bg-gray-100 text-gray-800',
       'in-progress': 'bg-blue-100 text-blue-800',
       'in-review': 'bg-purple-100 text-purple-800',
+      'client-pending': 'bg-orange-100 text-orange-800',
       done: 'bg-green-100 text-green-800',
     };
     return colors[status] || colors.todo;
@@ -996,6 +998,7 @@ const Tasks = ({ openCreate = false }) => {
               <option value="todo">To Do</option>
               <option value="in-progress">In Progress</option>
               <option value="in-review">In Review</option>
+              <option value="client-pending">Client Pending</option>
               <option value="done">Done</option>
             </select>
           </div>
@@ -1132,6 +1135,7 @@ const Tasks = ({ openCreate = false }) => {
                         <option value="todo">To Do</option>
                         <option value="in-progress">In Progress</option>
                         <option value="in-review">In Review</option>
+                        <option value="client-pending">Client Pending</option>
                         <option value="done">Done</option>
                       </select>
                       <span
@@ -1410,6 +1414,7 @@ const Tasks = ({ openCreate = false }) => {
                       <option value="todo">To Do</option>
                       <option value="in-progress">In Progress</option>
                       <option value="in-review">In Review</option>
+                      <option value="client-pending">Client Pending</option>
                       <option value="done">Done</option>
                     </select>
                   </div>

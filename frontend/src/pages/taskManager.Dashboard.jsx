@@ -6,7 +6,7 @@ import { useTheme } from '../context/taskManager.ThemeContext';
 import {
   FiCheckSquare, FiUser, FiRefreshCw, FiCheckCircle,
   FiClock, FiCalendar, FiUsers, FiPlus, FiArrowRight,
-  FiFolder, FiFilter, FiFileText
+  FiFolder, FiFilter, FiFileText, FiSearch
 } from 'react-icons/fi';
 
 const Dashboard = () => {
@@ -75,7 +75,7 @@ const Dashboard = () => {
 
       const [statsResponse, tasksResponse] = await Promise.all([
         api.get('/tasks/stats/dashboard', { params: selectedTeam ? { team: selectedTeam } : {} }),
-        api.get('/tasks', { params: { ...params, status: 'todo,in-progress,in-review' } }),
+        api.get('/tasks', { params: { ...params, status: 'todo,in-progress,in-review,client-pending' } }),
       ]);
 
       setStats(statsResponse.data);
@@ -128,8 +128,22 @@ const Dashboard = () => {
       name: 'In Progress',
       value: stats?.inProgressTasks || 0,
       icon: FiRefreshCw,
-      color: 'from-yellow-500 to-yellow-600',
+      color: 'from-blue-400 to-blue-500',
       link: '/taskflow/tasks?status=in-progress',
+    },
+    {
+      name: 'In Review',
+      value: stats?.inReviewTasks || 0,
+      icon: FiSearch,
+      color: 'from-purple-500 to-purple-600',
+      link: '/taskflow/tasks?status=in-review',
+    },
+    {
+      name: 'Client Pending',
+      value: stats?.clientPendingTasks || 0,
+      icon: FiClock,
+      color: 'from-orange-400 to-orange-500',
+      link: '/taskflow/tasks?status=client-pending',
     },
     {
       name: 'Overdue',
@@ -174,6 +188,7 @@ const Dashboard = () => {
         todo: 'bg-gray-700 text-gray-200',
         'in-progress': 'bg-blue-900 text-blue-200',
         'in-review': 'bg-purple-900 text-purple-200',
+        'client-pending': 'bg-orange-900 text-orange-200',
         done: 'bg-green-900 text-green-200',
       };
       return colors[status] || colors.todo;
@@ -182,6 +197,7 @@ const Dashboard = () => {
       todo: 'bg-gray-100 text-gray-800',
       'in-progress': 'bg-blue-100 text-blue-800',
       'in-review': 'bg-purple-100 text-purple-800',
+      'client-pending': 'bg-orange-100 text-orange-800',
       done: 'bg-green-100 text-green-800',
     };
     return colors[status] || colors.todo;

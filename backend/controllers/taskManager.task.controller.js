@@ -640,6 +640,7 @@ exports.updateTask = async (req, res, next) => {
         'todo': 'To Do',
         'in-progress': 'In Progress',
         'in-review': 'In Review',
+        'client-pending': 'Client Pending',
         'done': 'Done'
       };
 
@@ -1097,6 +1098,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
           todo: todoTasks,
           inProgress: inProgressTasks,
           inReview: inReviewTasks,
+          clientPending: await TaskManagerTask.countDocuments({ ...overviewQuery, status: 'client-pending' }),
           done: doneTasks,
         },
         myDoneTasksCount,
@@ -1198,6 +1200,8 @@ exports.getDashboardStats = async (req, res, next) => {
       totalTasks,
       todoTasks,
       inProgressTasks,
+      inReviewTasks,
+      clientPendingTasks,
       doneTasks,
       myTasks,
       createdByMe,
@@ -1208,6 +1212,8 @@ exports.getDashboardStats = async (req, res, next) => {
       TaskManagerTask.countDocuments(taskQuery),
       TaskManagerTask.countDocuments({ ...taskQuery, status: 'todo' }),
       TaskManagerTask.countDocuments({ ...taskQuery, status: 'in-progress' }),
+      TaskManagerTask.countDocuments({ ...taskQuery, status: 'in-review' }),
+      TaskManagerTask.countDocuments({ ...taskQuery, status: 'client-pending' }),
       TaskManagerTask.countDocuments({ ...taskQuery, status: 'done' }),
       TaskManagerTask.countDocuments({ ...taskQuery, assignedTo: req.user.id }),
       TaskManagerTask.countDocuments({ ...taskQuery, createdBy: req.user.id }),
@@ -1234,6 +1240,8 @@ exports.getDashboardStats = async (req, res, next) => {
         totalTasks,
         todoTasks,
         inProgressTasks,
+        inReviewTasks,
+        clientPendingTasks,
         doneTasks,
         myTasks,
         myDoneTasks,
