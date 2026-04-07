@@ -9,6 +9,8 @@ import PrivateRoute from './taskManager.PrivateRoute';
 import AdminRoute from './taskManager.AdminRoute';
 import TaskManagerLogin from '../pages/taskManager.Login';
 import TaskManagerRegister from '../pages/taskManager.Register';
+import ForgotPassword from '../pages/taskManager.ForgotPassword';
+import ResetPassword from '../pages/taskManager.ResetPassword';
 import TaskManagerDashboard from '../pages/taskManager.Dashboard';
 import TaskManagerTasks from '../pages/taskManager.Tasks';
 import TaskManagerTeams from '../pages/taskManager.Teams';
@@ -41,6 +43,8 @@ function TaskFlowApp() {
               <Routes>
                 <Route path="login" element={<TaskManagerLogin />} />
                 <Route path="register" element={<TaskManagerRegister />} />
+                <Route path="forgot-password" element={<ForgotPassword />} />
+                <Route path="reset-password/:token" element={<ResetPassword />} />
                 <Route path="first-login-setup" element={
                   <PrivateRoute>
                     <FirstLoginPasswordSetup />

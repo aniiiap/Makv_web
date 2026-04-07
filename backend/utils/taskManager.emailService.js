@@ -142,6 +142,72 @@ TaskFlow Team
   });
 };
 
-module.exports = { sendEmail, sendInvitationEmail };
+/**
+ * Send forgot password email
+ */
+const sendForgotPasswordEmail = async ({ email, resetUrl }) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Password Reset Request 🔒</h1>
+        </div>
+        <div class="content">
+          <p>Hello,</p>
+          <p>You are receiving this email because you (or someone else) has requested the reset of a password. Please click the button below to reset your password:</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button">Reset Password</a>
+          </div>
+          
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #667eea;">${resetUrl}</p>
+          
+          <p><strong>⚠️ Important:</strong> This password reset link is only valid for 10 minutes. If you did not request a password reset, please ignore this email and your password will remain unchanged.</p>
+          
+          <div class="footer">
+            <p>This is an automated email from TaskFlow. Please do not reply to this email.</p>
+            <p>&copy; ${new Date().getFullYear()} MAKV. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 
+  const message = `
+Password Reset Request
 
+Hello,
+
+You are receiving this email because you (or someone else) has requested the reset of a password. Please go to the following URL to reset your password:
+
+${resetUrl}
+
+IMPORTANT: This password reset link is only valid for 10 minutes. If you did not request a password reset, please ignore this email.
+
+Best regards,
+TaskFlow Team
+  `;
+
+  return await sendEmail({
+    email,
+    subject: 'TaskFlow - Password Reset Request',
+    message,
+    html,
+  });
+};
+
+module.exports = { sendEmail, sendInvitationEmail, sendForgotPasswordEmail };

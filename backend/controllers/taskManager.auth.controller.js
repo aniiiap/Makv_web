@@ -5,7 +5,7 @@ const TaskManagerPendingInvitation = require('../models/taskManager.PendingInvit
 const TaskManagerNotification = require('../models/taskManager.Notification');
 const { OAuth2Client } = require('google-auth-library');
 const crypto = require('crypto');
-const { sendEmail } = require('../utils/taskManager.emailService');
+const { sendEmail, sendForgotPasswordEmail } = require('../utils/taskManager.emailService');
 const { getIO } = require('../utils/taskManager.socketManager');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -449,27 +449,35 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    // Get reset token
     const resetToken = crypto.randomBytes(20).toString('hex');
 
     user.resetPasswordToken = crypto
       .createHash('sha256')
       .update(resetToken)
       .digest('hex');
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+      
+    // Use an explicit Date object to avoid casting issues
+    const expireTime = new Date(Date.now() + 10 * 60 * 1000); 
+    user.resetPasswordExpire = expireTime;
 
-    await user.save({ validateBeforeSave: false });
+    // Remove validate before save bypass to ensure schema applies it correctly
+    await user.save();
+
+    console.log("=== FORGOT PASSWORD REQUEST ===");
+    console.log("User:", user.email);
+    console.log("Raw Token (sent to user):", resetToken);
+    console.log("Hashed Token (stored):", user.resetPasswordToken);
+    console.log("Expiry:", user.resetPasswordExpire);
 
     // Create reset url
     const frontendUrls = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [];
-    const baseUrl = frontendUrls.length > 0 ? frontendUrls[0].trim() : 'http://localhost:3000';
+    const baseUrl = frontendUrls.length > 0 ? frontendUrls[0].trim() : 'https://www.makv.in';
     const resetUrl = `${baseUrl}/taskflow/reset-password/${resetToken}`;
 
     try {
-      await sendEmail({
+      await sendForgotPasswordEmail({
         email: user.email,
-        subject: 'Password reset token',
-        message: `You are receiving this email because you requested a password reset. Please make a PUT request to: \n\n ${resetUrl}`,
+        resetUrl,
       });
 
       res.json({
@@ -504,15 +512,25 @@ exports.resetPassword = async (req, res, next) => {
       .update(req.params.resettoken)
       .digest('hex');
 
+    console.log("Original Token from URL:", req.params.resettoken);
+    console.log("Hashed Token to Search:", resetPasswordToken);
+    console.log("Current Time to compare:", new Date());
+
     const user = await TaskManagerUser.findOne({
       resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() },
+      resetPasswordExpire: { $gt: new Date() },
     });
 
     if (!user) {
+      console.log("User not found with parsed token or token expired.");
+      // Check if user exists with just the token
+      const anyUser = await TaskManagerUser.findOne({ resetPasswordToken });
+      console.log("Was user found ignoring expiry?", !!anyUser);
+      if(anyUser) console.log("User expiry was:", anyUser.resetPasswordExpire);
+
       return res.status(400).json({
         success: false,
-        message: 'Invalid token',
+        message: 'Invalid token or token has expired',
       });
     }
 
