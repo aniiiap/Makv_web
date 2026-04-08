@@ -15,26 +15,26 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 // Build allowed origins list based on environment
 const allowedOrigins = [];
 
-// In production, only allow production domains
-if (isDevelopment) {
-  // Development: allow localhost
-  allowedOrigins.push(
-    'http://localhost:3000',
-    'http://localhost:5173' // Vite default port
-  );
-} else {
-  // Production: only allow production domains
-  // Get from environment variable (comma-separated for multiple domains)
-  const productionOrigins = process.env.FRONTEND_URL
-    ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-    : [];
+// Always include standard production domains to be safe
+const mandatoryOrigins = ['https://www.makv.in', 'https://makv.in'];
+allowedOrigins.push(...mandatoryOrigins);
 
-  // Always include standard production domains to be safe
-  const mandatoryOrigins = ['https://www.makv.in', 'https://makv.in'];
-  
-  allowedOrigins.push(...productionOrigins);
-  mandatoryOrigins.forEach(origin => {
-    if (!allowedOrigins.includes(origin)) {
+// Include standard development domains
+const devOrigins = ['http://localhost:3000', 'http://localhost:5173'];
+if (isDevelopment) {
+  allowedOrigins.push(...devOrigins);
+} else {
+  // If we are definitely in production but Node env might be weird, 
+  // keeping localhost might be okay, but let's strictly follow the existing logic while ensuring prod domains are ALWAYS present.
+  // Wait, if isDevelopment is true because NODE_ENV is missing on Render, 
+  // allowing devOrigins is harmless, but we MUST ensure mandatoryOrigins were pushed (which we just did above).
+}
+
+// Get from environment variable (comma-separated for multiple domains)
+if (process.env.FRONTEND_URL) {
+  const productionOrigins = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+  productionOrigins.forEach(origin => {
+    if (origin && !allowedOrigins.includes(origin)) {
       allowedOrigins.push(origin);
     }
   });
@@ -124,13 +124,14 @@ try {
   console.warn('Socket.IO initialization failed, running without real-time features:', error.message);
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
   });
 }
 
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-  
+
   // Specific handling for Multer errors
   if (err.name === 'MulterError') {
     return res.status(400).json({
