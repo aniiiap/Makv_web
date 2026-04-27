@@ -46,7 +46,7 @@ const BillGenerator = () => {
             name: '',
             address: '',
             gstin: '',
-            stateCode: '06',
+            stateCode: '27',
             clientId: '',
         },
         items: [
@@ -92,7 +92,7 @@ const BillGenerator = () => {
                                 name: client.name || '',
                                 address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
                                 gstin: client.gstin || '',
-                                stateCode: client.stateCode || '06',
+                                stateCode: client.stateCode || '27',
                             },
                             sentToEmail: client.email || prev.sentToEmail,
                         }));
@@ -123,7 +123,7 @@ const BillGenerator = () => {
                     name: client.name,
                     address: client.address || '',
                     gstin: client.gstin || '',
-                    stateCode: client.stateCode || '06',
+                    stateCode: client.stateCode || '27',
                 },
                 sentToEmail: client.email || prev.sentToEmail
             }));
