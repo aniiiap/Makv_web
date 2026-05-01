@@ -9,6 +9,7 @@ const {
   getDashboardStats,
   getAnalyticsStats,
   getDailyTimerStats,
+  getActiveTimer,
   getTaskActivities,
   addSubtask,
   updateSubtask,
@@ -35,6 +36,7 @@ router.use(protect);
 router.get('/stats/dashboard', getDashboardStats);
 router.get('/stats/analytics', getAnalyticsStats);
 router.get('/stats/daily-timer', getDailyTimerStats);
+router.get('/timer/active', getActiveTimer);
 router.route('/').get(getTasks).post(createTask);
 router.route('/:id').get(getTask).put(updateTask).delete(deleteTask);
 router.post('/:id/comments', addComment);

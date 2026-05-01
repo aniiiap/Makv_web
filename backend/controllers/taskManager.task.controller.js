@@ -1587,6 +1587,30 @@ exports.deleteSubtask = async (req, res, next) => {
 };
 
 // @desc    Start timer for task
+// @desc    Get active timer for user
+// @route   GET /api/tasks/timer/active
+// @access  Private
+exports.getActiveTimer = async (req, res, next) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const task = await TaskManagerTask.findOne({
+      'activeTimer.userId': userId
+    })
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar');
+
+    res.json({
+      success: true,
+      data: task || null
+    });
+  } catch (error) {
+    console.error('Error in getActiveTimer:', error);
+    next(error);
+  }
+};
+
+// @desc    Start timer for task
 // @route   POST /api/tasks/:id/timer/start
 // @access  Private
 exports.startTimer = async (req, res, next) => {

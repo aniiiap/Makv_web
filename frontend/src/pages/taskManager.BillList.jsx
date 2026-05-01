@@ -1,9 +1,8 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
-import { FiPlus, FiDownload, FiFileText, FiRefreshCw } from 'react-icons/fi';
+import { FiPlus, FiDownload, FiFileText, FiRefreshCw, FiSearch, FiCheck, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
@@ -11,39 +10,38 @@ const BillList = () => {
     const { isDark } = useTheme();
     const [bills, setBills] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'done'
 
     const handleExportExcel = () => {
-        if (bills.length === 0) {
+        if (filteredBills.length === 0) {
             toast.error('No invoices to export.');
             return;
         }
 
-        const excelData = bills.map(bill => ({
+        const excelData = filteredBills.map(bill => ({
             'GSTIN/UIN of Recipient': bill.buyerDetails?.gstin || 'N/A',
             'Invoice Number': bill.invoiceNo || '',
             'Invoice date': bill.date ? new Date(bill.date).toLocaleDateString('en-GB') : '',
             'Invoice Value': bill.taxDetails?.totalAmount || bill.totalAmount || 0,
-            'Taxable Value': bill.taxDetails?.taxableAmount || bill.totalAmount || 0
+            'Taxable Value': bill.taxDetails?.taxableAmount || bill.totalAmount || 0,
+            'Status': bill.isDone ? 'Done' : 'Pending'
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Invoices");
-        XLSX.writeFile(workbook, `Invoices_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(workbook, `Invoices_${activeTab}_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const fetchBills = async () => {
         try {
-            console.log('Client: Fetching bills...');
+            setLoading(true);
             const response = await api.get('/bills');
-            console.log('Client: Bills API Response:', response);
 
-            // The interceptor already returns 'response.data', so 'response' IS the data array
             if (Array.isArray(response)) {
-                console.log('Client: Setting bills state with length:', response.length);
                 setBills(response);
             } else {
-                console.error('Client: Response is not an array:', response);
                 setBills([]);
             }
         } catch (error) {
@@ -54,20 +52,121 @@ const BillList = () => {
         }
     };
 
+    const toggleBillStatus = async (billId, currentStatus) => {
+        try {
+            const loadingToast = toast.loading('Updating status...');
+            const response = await api.patch(`/bills/${billId}/status`, { isDone: !currentStatus });
+            if (response) {
+                toast.dismiss(loadingToast);
+                toast.success('Bill status updated');
+                // Update local state without refetching everything
+                setBills(prev => prev.map(b => b._id === billId ? { ...b, isDone: !currentStatus } : b));
+            }
+        } catch (error) {
+            toast.dismiss();
+            toast.error('Failed to update status');
+            console.error(error);
+        }
+    };
+
     useEffect(() => {
         fetchBills();
     }, []);
 
+    const filteredBills = useMemo(() => {
+        return bills.filter(bill => {
+            // Tab filter
+            if (activeTab === 'pending' && bill.isDone) return false;
+            if (activeTab === 'done' && !bill.isDone) return false;
+
+            // Search filter
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                const invoiceMatch = bill.invoiceNo?.toLowerCase().includes(searchLower);
+                const nameMatch = bill.buyerDetails?.name?.toLowerCase().includes(searchLower);
+                return invoiceMatch || nameMatch;
+            }
+            return true;
+        });
+    }, [bills, activeTab, searchTerm]);
+
+    const getDownloadUrl = (bill) => {
+        if (!bill.pdfUrl) return '#';
+        const clientFirstName = (bill.buyerDetails?.name || 'Client').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
+        const safeInvoiceNo = (bill.invoiceNo || 'Unknown').replace(/[^a-zA-Z0-9-]/g, '_');
+        const downloadName = `Invoice-${safeInvoiceNo}-${clientFirstName}.pdf`;
+        
+        // Use Cloudinary's fl_attachment feature for custom download names
+        if (bill.pdfUrl.includes('/upload/')) {
+            // Some Cloudinary setups throw 400 if fl_attachment value contains certain characters.
+            // Replace hyphens with underscores just to be safe.
+            const cloudinarySafeName = downloadName.replace(/-/g, '_');
+            return bill.pdfUrl.replace('/upload/', `/upload/fl_attachment:${cloudinarySafeName}/`);
+        }
+        return bill.pdfUrl;
+    };
+
+    const handleDownload = async (bill) => {
+        const clientFirstName = (bill.buyerDetails?.name || 'Client').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
+        const safeInvoiceNo = (bill.invoiceNo || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+        const downloadName = `Invoice_${safeInvoiceNo}_${clientFirstName}.pdf`;
+        
+        try {
+            const toastId = toast.loading('Downloading invoice...');
+            const response = await fetch(bill.pdfUrl);
+            if (!response.ok) throw new Error('Network error');
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = downloadName;
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(a);
+            toast.dismiss(toastId);
+        } catch (error) {
+            toast.dismiss();
+            toast.error('Failed to download PDF. Opening in new tab...');
+            // Fallback: open URL
+            window.open(bill.pdfUrl, '_blank');
+        }
+    };
+
+    const handleView = async (bill) => {
+        try {
+            const toastId = toast.loading('Opening invoice...');
+            const response = await fetch(bill.pdfUrl);
+            if (!response.ok) throw new Error('Network error');
+            const blob = await response.blob();
+            // Create a blob URL with explicit application/pdf type to force inline viewing
+            const blobUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+            
+            // Open in new tab
+            window.open(blobUrl, '_blank');
+            
+            toast.dismiss(toastId);
+            // Clean up the URL object after a reasonable time
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+        } catch (error) {
+            toast.dismiss();
+            // Fallback to direct link if fetch fails (e.g., CORS issues)
+            window.open(bill.pdfUrl, '_blank');
+        }
+    };
+
     return (
         <div className={`space-y-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold">Uploaded Bills</h1>
+                    <h1 className="text-3xl font-bold">Uploaded Bills & Invoices</h1>
                     <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         Manage and view generated invoices
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <button
                         onClick={handleExportExcel}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-md font-medium ${isDark
@@ -97,25 +196,65 @@ const BillList = () => {
                 </div>
             </div>
 
+            {/* Filters & Tabs */}
+            <div className="flex flex-col sm:flex-row justify-between gap-4 items-center">
+                <div className={`flex rounded-lg p-1 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'pending'
+                            ? (isDark ? 'bg-gray-700 text-white shadow' : 'bg-white text-gray-900 shadow')
+                            : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
+                            }`}
+                    >
+                        Pending Bills
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('done')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'done'
+                            ? (isDark ? 'bg-gray-700 text-white shadow' : 'bg-white text-gray-900 shadow')
+                            : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
+                            }`}
+                    >
+                        Done Bills
+                    </button>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                    <FiSearch className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                        type="text"
+                        placeholder="Search by Invoice No or Client..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${isDark
+                            ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            }`}
+                    />
+                </div>
+            </div>
+
             {/* Content */}
             <div className={`rounded-xl shadow-md border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-primary-400' : 'border-primary-600'}`}></div>
                     </div>
-                ) : bills.length === 0 ? (
+                ) : filteredBills.length === 0 ? (
                     <div className="p-12 text-center">
                         <FiFileText className={`w-16 h-16 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-                        <h3 className="text-xl font-semibold mb-2">No Bills Generated Yet</h3>
+                        <h3 className="text-xl font-semibold mb-2">No Bills Found</h3>
                         <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Create your first invoice to see it here.
+                            {searchTerm ? 'Try adjusting your search query.' : (activeTab === 'done' ? 'No completed bills yet.' : 'Create your first invoice to see it here.')}
                         </p>
-                        <Link
-                            to="/taskflow/bills/create"
-                            className="text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                            Generate Invoice Now &rarr;
-                        </Link>
+                        {activeTab === 'pending' && !searchTerm && (
+                            <Link
+                                to="/taskflow/bills/create"
+                                className="text-primary-600 hover:text-primary-700 font-medium"
+                            >
+                                Generate Invoice Now &rarr;
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -124,50 +263,58 @@ const BillList = () => {
                                 <tr>
                                     <th className="p-4 font-semibold">Invoice No</th>
                                     <th className="p-4 font-semibold">Date</th>
-                                    <th className="p-4 font-semibold">Sender</th>
+                                    <th className="p-4 font-semibold">Client Name</th>
                                     <th className="p-4 font-semibold text-right">Amount</th>
                                     <th className="p-4 font-semibold text-center">Status</th>
                                     <th className="p-4 font-semibold text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-100'}`}>
-                                {bills.map((bill) => (
+                                {filteredBills.map((bill) => (
                                     <tr key={bill._id} className={`hover:bg-opacity-50 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                                         <td className="p-4 font-medium">{bill.invoiceNo}</td>
                                         <td className="p-4 text-sm">{new Date(bill.date).toLocaleDateString()}</td>
                                         <td className="p-4">{bill.buyerDetails.name}</td>
-                                        <td className="p-4 text-right font-semibold">₹{bill.taxDetails?.totalAmount ? bill.taxDetails.totalAmount.toFixed(2) : '0.00'}</td>
+                                        <td className="p-4 text-right font-semibold">₹{bill.taxDetails?.totalAmount ? bill.taxDetails.totalAmount.toFixed(2) : (bill.totalAmount ? bill.totalAmount.toFixed(2) : '0.00')}</td>
                                         <td className="p-4 text-center">
-                                            <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                                                Sent
+                                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${bill.isDone ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                                {bill.isDone ? 'Done' : 'Sent'}
                                             </span>
                                         </td>
                                         <td className="p-4 text-center">
-                                            {bill.pdfUrl ? (
-                                                <div className="flex items-center justify-center gap-3">
-                                                    <a
-                                                        href={bill.pdfUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-primary-600 hover:text-primary-800 transition-colors"
-                                                        title="View PDF"
-                                                    >
-                                                        <FiFileText className="w-5 h-5" />
-                                                    </a>
-                                                    <a
-                                                        href={bill.pdfUrl.replace('/upload/', '/upload/fl_attachment/')}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-gray-600 hover:text-gray-800 transition-colors"
-                                                        title="Download PDF"
-                                                        download
-                                                    >
-                                                        <FiDownload className="w-5 h-5" />
-                                                    </a>
-                                                </div>
-                                            ) : (
-                                                <span className="text-gray-400 text-sm">Processing...</span>
-                                            )}
+                                            <div className="flex items-center justify-center gap-3">
+                                                <button
+                                                    onClick={() => toggleBillStatus(bill._id, bill.isDone)}
+                                                    className={`px-3 py-1 text-xs rounded-md border flex items-center gap-1 transition-colors ${
+                                                        bill.isDone 
+                                                        ? (isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                                                        : 'border-green-500 text-green-600 hover:bg-green-50'
+                                                    }`}
+                                                    title={bill.isDone ? "Mark as Pending" : "Mark as Done"}
+                                                >
+                                                    {bill.isDone ? <><FiX className="w-3 h-3"/> Undo</> : <><FiCheck className="w-3 h-3"/> Done</>}
+                                                </button>
+                                                {bill.pdfUrl ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleView(bill)}
+                                                            className="text-primary-600 hover:text-primary-800 transition-colors"
+                                                            title="View PDF"
+                                                        >
+                                                            <FiFileText className="w-5 h-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownload(bill)}
+                                                            className="text-gray-600 hover:text-gray-800 transition-colors"
+                                                            title="Download PDF"
+                                                        >
+                                                            <FiDownload className="w-5 h-5" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm">Processing...</span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

@@ -121,6 +121,7 @@ const generatePDF = async (billData) => {
                 <div style="margin-bottom: 4px;">${billData.buyerDetails.address}</div>
                 ${billData.buyerDetails.gstin ? '<div>GSTIN/UIN : ' + billData.buyerDetails.gstin + '</div>' : ''}
                 ${billData.buyerDetails.stateCode ? '<div>State Code : ' + billData.buyerDetails.stateCode + '</div>' : ''}
+                ${billData.sentToEmail ? '<div>Email : ' + billData.sentToEmail + '</div>' : ''}
              </td>
              <td>
               <div class="small-label">Buyer's Order No.</div>
@@ -659,6 +660,7 @@ const generateHUFPDF = async (billData) => {
                 <div class="small-label">Buyer (Bill to)</div>
                 <div class="bold" style="font-size: 12px; margin-bottom: 4px;">${billData.buyerDetails.name}</div>
                 <div style="margin-bottom: 4px;">${billData.buyerDetails.address}</div>
+                ${billData.sentToEmail ? '<div>Email : ' + billData.sentToEmail + '</div>' : ''}
              </td>
              <td>
               <div class="small-label">Buyer's Order No.</div>
@@ -897,7 +899,18 @@ exports.createHUFBill = async (req, res) => {
 
     console.log('HUF Bill generation completed successfully.');
 
-    // 5. Attach to client dashboard (if buyer has clientId)
+    // 5. Update Task isBillable if taskId provided
+    if (billData.taskId) {
+      console.log('HUF Step 5: Updating original task status...');
+      try {
+        await TaskManagerTask.findByIdAndUpdate(billData.taskId, { isBillable: true });
+        console.log(`Task ${billData.taskId} marked as billable`);
+      } catch (taskErr) {
+        console.error('Failed to mark task as billable:', taskErr);
+      }
+    }
+
+    // 6. Attach to client dashboard (if buyer has clientId)
     if (billData.buyerDetails && billData.buyerDetails.clientId) {
       try {
         // We need an Office User ID (uploadedBy) for the document.
@@ -933,7 +946,24 @@ exports.createHUFBill = async (req, res) => {
     res.status(201).json({ message: 'HUF Bill generated successfully', bill: newBill });
   } catch (error) {
     console.error('CRITICAL ERROR in createHUFBill:', error);
-    res.status(500).json({ message: 'Error creating HUF bill', error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Error generating HUF bill', error: error.message, stack: error.stack });
+  }
+};
+
+exports.updateBillStatus = async (req, res) => {
+  try {
+    const bill = await Bill.findById(req.params.id);
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found' });
+    }
+    
+    bill.isDone = req.body.isDone !== undefined ? req.body.isDone : !bill.isDone;
+    await bill.save();
+    
+    res.status(200).json({ message: 'Bill status updated', bill });
+  } catch (error) {
+    console.error('Error updating bill status:', error);
+    res.status(500).json({ message: 'Error updating bill status', error: error.message });
   }
 };
 

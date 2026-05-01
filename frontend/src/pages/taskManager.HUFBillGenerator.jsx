@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiChevronDown, FiChevronUp } from 'react-icons/fi';
@@ -9,6 +9,10 @@ import ConfirmationModal from '../components/taskManager.ConfirmationModal';
 
 const HUFBillGenerator = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const taskId = queryParams.get('taskId') || null;
+
     const { isDark } = useTheme();
     const [loading, setLoading] = useState(false);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
@@ -23,6 +27,7 @@ const HUFBillGenerator = () => {
     const [formData, setFormData] = useState({
         invoiceNo: 'Auto-generated',
         date: getLocalDateString(),
+        taskId: taskId,
 
         // Extra Fields
         deliveryNote: '',
@@ -47,6 +52,36 @@ const HUFBillGenerator = () => {
         ],
         sentToEmail: '',
     });
+
+    useEffect(() => {
+        if (!taskId) return;
+        const fetchTaskAndClient = async () => {
+            try {
+                const taskRes = await api.get(`/tasks/${taskId}`);
+                const task = taskRes?.data || taskRes;
+                if (task?.client) {
+                    const clientId = task.client._id || task.client;
+                    const clientRes = await api.get(`/clients/${clientId}`);
+                    const client = clientRes?.client || clientRes?.data?.client || clientRes;
+                    if (client && client.name) {
+                        setFormData(prev => ({
+                            ...prev,
+                            buyerDetails: {
+                                ...prev.buyerDetails,
+                                clientId: client._id,
+                                name: client.name || '',
+                                address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
+                            },
+                            sentToEmail: client.email || prev.sentToEmail,
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching task/client for auto-fill:', error);
+            }
+        };
+        fetchTaskAndClient();
+    }, [taskId]);
 
     useEffect(() => {
         const fetchClients = async () => {

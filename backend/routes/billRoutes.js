@@ -9,5 +9,6 @@ router.post('/payslip', protect, authorizeRoles('admin'), billController.createP
 router.get('/', protect, billController.getBills);
 router.get('/payslips', protect, authorizeRoles('admin'), billController.getPaySlips);
 router.get('/clients', protect, billController.getClientsForBilling);
+router.patch('/:id/status', protect, billController.updateBillStatus);
 
 module.exports = router;

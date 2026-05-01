@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import api from '../utils/taskManager.api';
 
 const TimerContext = createContext();
 
@@ -51,6 +52,48 @@ export const TimerProvider = ({ children }) => {
                 console.error('Failed to load timer state:', error);
             }
         }
+
+        // Fetch active timer from backend to ensure cross-device consistency
+        const fetchActiveTimer = async () => {
+            try {
+                // Ignore if we are on login/register page where we don't have auth yet
+                const token = localStorage.getItem('taskManager_token');
+                if (!token) return;
+
+                const response = await api.get('/tasks/timer/active');
+                if (response && response.data) {
+                    const task = response.data;
+                    const timerData = task.activeTimer;
+                    if (timerData) {
+                        // Sync with backend timer state
+                        setActiveTask(task);
+                        setIsRunning(true);
+                        setIsPaused(timerData.isPaused || false);
+                        
+                        const backStartTime = new Date(timerData.startTime).getTime();
+                        setStartTime(backStartTime);
+                        
+                        const backLastResumed = timerData.lastResumedAt ? new Date(timerData.lastResumedAt).getTime() : backStartTime;
+                        setLastResumedAt(backLastResumed);
+                        
+                        const backAccumulated = timerData.accumulatedTime || 0;
+                        setAccumulatedTime(backAccumulated);
+
+                        if (timerData.isPaused) {
+                            setElapsedTime(backAccumulated);
+                        } else {
+                            const now = Date.now();
+                            const diff = Math.floor((now - backLastResumed) / 1000);
+                            setElapsedTime(backAccumulated + (diff > 0 ? diff : 0));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch active timer from backend:', error);
+            }
+        };
+
+        fetchActiveTimer();
     }, []);
 
     // Save state to localStorage whenever critical state changes

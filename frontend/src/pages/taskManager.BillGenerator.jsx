@@ -84,6 +84,8 @@ const BillGenerator = () => {
                     const clientRes = await api.get(`/clients/${clientId}`);
                     const client = clientRes?.client || clientRes?.data?.client || clientRes;
                     if (client && client.name) {
+                        const gstinStr = client.gstin || '';
+                        const derivedStateCode = (gstinStr && gstinStr.length >= 2) ? gstinStr.substring(0, 2) : (client.stateCode || '27');
                         setFormData(prev => ({
                             ...prev,
                             buyerDetails: {
@@ -91,8 +93,8 @@ const BillGenerator = () => {
                                 clientId: client._id,
                                 name: client.name || '',
                                 address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
-                                gstin: client.gstin || '',
-                                stateCode: client.stateCode || '27',
+                                gstin: gstinStr,
+                                stateCode: derivedStateCode,
                             },
                             sentToEmail: client.email || prev.sentToEmail,
                         }));
@@ -115,6 +117,8 @@ const BillGenerator = () => {
         const client = officeClients.find(c => c._id === selectedClientId);
 
         if (client) {
+            const gstinStr = client.gstin || '';
+            const derivedStateCode = (gstinStr && gstinStr.length >= 2) ? gstinStr.substring(0, 2) : (client.stateCode || '27');
             setFormData(prev => ({
                 ...prev,
                 buyerDetails: {
@@ -122,8 +126,8 @@ const BillGenerator = () => {
                     clientId: client._id,
                     name: client.name,
                     address: client.address || '',
-                    gstin: client.gstin || '',
-                    stateCode: client.stateCode || '27',
+                    gstin: gstinStr,
+                    stateCode: derivedStateCode,
                 },
                 sentToEmail: client.email || prev.sentToEmail
             }));
@@ -138,6 +142,7 @@ const BillGenerator = () => {
             }));
         }
     };
+
 
     const handleBuyerChange = (e) => {
         const { name, value } = e.target;

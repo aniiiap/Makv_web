@@ -42,10 +42,10 @@ const Tasks = ({ openCreate = false }) => {
     resumeLocalTimer
   } = useTimer();
 
-  const [manualTimeHours, setManualTimeHours] = useState('');
   const [manualTimeMinutes, setManualTimeMinutes] = useState('');
   const [isSavingTask, setIsSavingTask] = useState(false);
   const { isDark } = useTheme();
+  const [showBillTypeModal, setShowBillTypeModal] = useState({ isOpen: false, taskId: null, isNew: false, event: null });
   const [filters, setFilters] = useState(() => {
     // Parse URL on initial load to avoid race condition
     const params = new URLSearchParams(window.location.search);
@@ -560,7 +560,8 @@ const Tasks = ({ openCreate = false }) => {
     }
   };
 
-  const autoSaveTaskAndRedirectToBill = async (e) => {
+  // Handle auto-saving a task before redirecting to bill generation
+  const autoSaveTaskAndRedirectToBill = async (e, billType = 'normal') => {
     e.preventDefault();
     if (isSavingTask) return;
 
@@ -598,7 +599,7 @@ const Tasks = ({ openCreate = false }) => {
       fetchTasks();
 
       const newTaskId = response.data._id;
-      navigate(`/taskflow/bills/create?taskId=${newTaskId}`);
+      navigate(`/taskflow/bills/${billType === 'huf' ? 'create-huf' : 'create'}?taskId=${newTaskId}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to auto-save task');
     } finally {
@@ -1478,19 +1479,17 @@ const Tasks = ({ openCreate = false }) => {
                             return;
                           }
 
-                          // Confirmation prompt
-                          if (window.confirm("A bill must be generated to mark this task as billable. Redirect to Bill Generator?")) {
-                            // Check if it's already saved (has _id)
-                            if (editingTask && editingTask._id) {
-                              navigate(`/taskflow/bills/create?taskId=${editingTask._id}`);
-                            } else if (editingTask && typeof editingTask === 'string') {
-                              // Sometimes editingTask is just the ID string in state depending on how the component is built
-                              navigate(`/taskflow/bills/create?taskId=${editingTask}`);
-                            } else {
-                              // It's a new task entirely
-                              autoSaveTaskAndRedirectToBill(e);
-                            }
+                          // Custom Modal prompt
+                          let tId = null;
+                          let isNew = true;
+                          if (editingTask && editingTask._id) {
+                            tId = editingTask._id;
+                            isNew = false;
+                          } else if (editingTask && typeof editingTask === 'string') {
+                            tId = editingTask;
+                            isNew = false;
                           }
+                          setShowBillTypeModal({ isOpen: true, taskId: tId, isNew: isNew, event: e });
                         }}
                         className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                       />
@@ -1943,6 +1942,56 @@ const Tasks = ({ openCreate = false }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Bill Type Selection Modal */}
+      {showBillTypeModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-sm rounded-2xl shadow-xl overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
+            <div className="p-6">
+              <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Generate Bill</h3>
+              <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                A bill must be generated to mark this task as billable. Which type of bill would you like to generate?
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    const { taskId, isNew, event } = showBillTypeModal;
+                    setShowBillTypeModal({ isOpen: false, taskId: null, isNew: false, event: null });
+                    if (!isNew) {
+                      navigate(`/taskflow/bills/create?taskId=${taskId}`);
+                    } else {
+                      autoSaveTaskAndRedirectToBill(event, 'normal');
+                    }
+                  }}
+                  className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  Normal Bill
+                </button>
+                <button
+                  onClick={() => {
+                    const { taskId, isNew, event } = showBillTypeModal;
+                    setShowBillTypeModal({ isOpen: false, taskId: null, isNew: false, event: null });
+                    if (!isNew) {
+                      navigate(`/taskflow/bills/create-huf?taskId=${taskId}`);
+                    } else {
+                      autoSaveTaskAndRedirectToBill(event, 'huf');
+                    }
+                  }}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  HUF Bill
+                </button>
+                <button
+                  onClick={() => setShowBillTypeModal({ isOpen: false, taskId: null, isNew: false, event: null })}
+                  className={`w-full py-3 mt-2 border ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'} rounded-lg transition-colors font-medium`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
