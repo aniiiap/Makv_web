@@ -42,6 +42,7 @@ const Tasks = ({ openCreate = false }) => {
     resumeLocalTimer
   } = useTimer();
 
+  const [manualTimeHours, setManualTimeHours] = useState('');
   const [manualTimeMinutes, setManualTimeMinutes] = useState('');
   const [isSavingTask, setIsSavingTask] = useState(false);
   const { isDark } = useTheme();
