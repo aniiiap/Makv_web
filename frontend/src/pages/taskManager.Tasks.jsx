@@ -1800,7 +1800,8 @@ const Tasks = ({ openCreate = false }) => {
                   })()}
                 </div>
 
-                {/* Manual time entry */}
+                {/* Manual time entry - hidden */}
+                {false && (
                 <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Log Time Manually</h4>
                   <div className="flex gap-2 items-end">
@@ -1833,6 +1834,7 @@ const Tasks = ({ openCreate = false }) => {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Time entries history */}
                 {currentTaskDetails?.timeEntries?.length > 0 && (
