@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaCheckCircle, FaLinkedin, FaEnvelope, FaPhone, FaBriefcase, FaGraduationCap } from 'react-icons/fa';
+import { FaCheckCircle, FaLinkedin, FaEnvelope, FaPhone, FaBriefcase, FaGraduationCap, FaUserTie, FaUsers, FaQuoteLeft } from 'react-icons/fa';
 
 const Partners = () => {
 
@@ -79,18 +79,81 @@ const Partners = () => {
     },
   ];
 
+  // Senior Executives / Accounts Executives
+  const seniorExecutives = [
+    {
+      id: 1,
+      name: 'Manoj Sharma',
+      designation: 'Accounts Executive',
+      image: '/Accounts_executive/Manoj.png',
+    },
+    // {
+    //   id:2,
+    //   name: 'Harshil Jain',
+    //   designation: 'Accounts Executive',
+    //   image: '/Accounts_executive/Harshil.jpeg',
+    // },
+  ];
+
+  // Articles Employees
+  const articlesEmployees = [
+    {
+      id: 1,
+      name: 'Harshil Jain',
+      image: '/Articles/Harshil.png',
+      quote: "Dedicated accounting professional handling TDS returns, stock statements, and financial documentation efficiently in a CA office.",
+    },
+    {
+      id: 2,
+      name: 'Bhumika Sodani',
+      image: '/Articles/Bhumika.png',
+      quote: "GST working: handle taxes, invoices, and returns to keep businesses compliant.",
+    },
+    {
+      id: 3,
+      name: 'Riya Lakhwani',
+      image: '/Articles/Riya.png',
+      quote: "Detail-oriented articled assistant skilled in Accounting, Tally, MS Excel and financial reporting with strong analytical abilities.",
+    },
+    {
+      id: 4,
+      name: 'Naina Jain',
+      image: '/Articles/Naina.jpeg',
+      quote: "Skilled in accounting, auditing, MS Excel, and Tally, with experience in financial reporting and data management.",
+    },
+    {
+      id: 5,
+      name: 'Koshal Samtani',
+      image: '/Articles/Koshal.png',
+      quote: "Skilled in GST compliance, reconciliations, stock audits, and international accounting, ensuring accuracy and regulatory adherence.",
+    },
+  ];
+
+  // Articles carousel - one at a time
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (articlesEmployees.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % articlesEmployees.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [articlesEmployees.length]);
+
+  const goToSlide = (index) => setCurrentSlide(index);
+  const prevSlide = () => setCurrentSlide(prev => (prev - 1 + articlesEmployees.length) % articlesEmployees.length);
+  const nextSlide = () => setCurrentSlide(prev => (prev + 1) % articlesEmployees.length);
+
   return (
     <div className="pt-20 min-h-screen bg-gray-50 overflow-x-hidden max-w-full">
       {/* Hero Section */}
       <section className="relative text-white py-20 overflow-hidden max-w-full">
-        {/* Background Image */}
         <div className="absolute inset-0 z-0">
-            <img
-              src="/images/360_F_1131253189_fkD2TvFUZTfleR95SSmpzTRgTLlXFpeP.jpg"
-              alt="Background"
-              className="w-full h-full object-cover object-center"
-            />
-          {/* Overlay for better text readability */}
+          <img
+            src="/images/360_F_1131253189_fkD2TvFUZTfleR95SSmpzTRgTLlXFpeP.jpg"
+            alt="Background"
+            className="w-full h-full object-cover object-center"
+          />
           <div className="absolute inset-0 bg-gradient-to-br from-primary-900/50 via-primary-800/40 to-secondary-900/50"></div>
         </div>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 max-w-full">
@@ -133,8 +196,6 @@ const Partners = () => {
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.3 }}
                     />
-                    
-                    {/* Name & Designation */}
                     <div className="text-center mb-6">
                       <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                         {member.name}
@@ -143,8 +204,6 @@ const Partners = () => {
                         {member.designation}
                       </p>
                     </div>
-
-                    {/* Social Links */}
                     <div className="flex items-center justify-center gap-3">
                       {member.linkedin && (
                         <a
@@ -180,7 +239,6 @@ const Partners = () => {
 
                   {/* Content Section */}
                   <div className="lg:w-3/5 p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-center bg-white w-full">
-                    {/* Overview */}
                     <div className="mb-8">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-1 h-8 bg-gradient-to-b from-primary-600 to-secondary-600 rounded-full"></div>
@@ -193,8 +251,6 @@ const Partners = () => {
                         {member.shortDescription}
                       </p>
                     </div>
-
-                    {/* Qualifications */}
                     <div>
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-1 h-8 bg-gradient-to-b from-primary-600 to-secondary-600 rounded-full"></div>
@@ -223,9 +279,133 @@ const Partners = () => {
           </div>
         </div>
       </section>
+
+      {/* Senior Executives Section */}
+      {seniorExecutives.length > 0 && (
+        <section className="py-16 bg-gray-50 overflow-x-hidden">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-12"
+            >
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold mb-4">
+                <FaUserTie />
+                Our Team
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
+                Senior Executives
+              </h2>
+              <p className="text-gray-600 max-w-xl mx-auto">
+                Dedicated professionals ensuring seamless operations and financial excellence
+              </p>
+            </motion.div>
+
+            <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto">
+              {seniorExecutives.map((exec, index) => (
+                <motion.div
+                  key={exec.id}
+                  initial={{ opacity: 0, y: 40 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.15 }}
+                >
+                  <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden w-[220px] sm:w-[240px] group border border-gray-100 flex flex-col h-full">
+                    {/* Image Area - Rectangular Portrait */}
+                    <div className="h-[200px] sm:h-[220px] w-full overflow-hidden relative bg-gradient-to-br from-primary-50 to-secondary-50">
+                      <img
+                        src={exec.image}
+                        alt={exec.name}
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
+                      />
+                      {/* Subtle hover gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </div>
+                    
+                    {/* Content Area */}
+                    <div className="p-5 text-center bg-white relative flex-grow flex flex-col justify-center">
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-700 transition-colors">
+                        {exec.name}
+                      </h3>
+                      {/* Decorative animated separator */}
+                      <div className="w-10 h-1 bg-primary-600 mx-auto mb-2 rounded-full opacity-60 group-hover:w-14 group-hover:opacity-100 group-hover:bg-secondary-500 transition-all duration-300"></div>
+                      <p className="text-primary-600 font-semibold text-xs tracking-wide uppercase">
+                        {exec.designation}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Articles Employees Carousel - One at a Time */}
+      {articlesEmployees.length > 0 && (
+        <section className="py-16 bg-white overflow-hidden">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-12"
+            >
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary-100 text-secondary-700 rounded-full text-sm font-semibold mb-4">
+                <FaUsers />
+                Our Aspiring CAs
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
+                Articles
+              </h2>
+              <p className="text-gray-600 max-w-xl mx-auto">
+                Future chartered accountants gaining hands-on experience with our team
+              </p>
+            </motion.div>
+
+            {/* Continuous Marquee Carousel */}
+            <div className="relative w-full overflow-hidden flex pb-8 px-4">
+              {/* Fade masks for the edges */}
+              <div className="absolute top-0 left-0 bottom-8 w-8 sm:w-24 bg-gradient-to-r from-gray-50 to-transparent z-10"></div>
+              <div className="absolute top-0 right-0 bottom-8 w-8 sm:w-24 bg-gradient-to-l from-gray-50 to-transparent z-10"></div>
+
+              <motion.div
+                className="flex gap-6 items-stretch w-max pr-6"
+                animate={{ x: ["0%", "-50%"] }}
+                transition={{ ease: "linear", duration: 35, repeat: Infinity }}
+              >
+                {[...articlesEmployees, ...articlesEmployees].map((emp, i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-50 flex flex-col sm:flex-row w-[260px] sm:w-[380px] h-[300px] sm:h-[140px] shrink-0 whitespace-normal group overflow-hidden hover:shadow-md transition-shadow duration-300">
+                    {/* Image side */}
+                    <div className="relative w-full sm:w-[120px] h-[160px] sm:h-full shrink-0 bg-gradient-to-br from-primary-50 to-secondary-50">
+                      <img src={emp.image} alt={emp.name} className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+                    {/* Content / Quote side */}
+                    <div className="p-4 flex flex-col justify-center text-left bg-white flex-grow h-full overflow-hidden">
+                      <FaQuoteLeft className="text-sm text-primary-200 mb-1.5 shrink-0" />
+                      <p className="text-gray-600 italic text-xs leading-relaxed mb-2 line-clamp-2">
+                        "{emp.quote}"
+                      </p>
+                      <div className="mt-auto">
+                        <h4 className="text-[13px] font-bold text-gray-900 group-hover:text-primary-700 transition-colors truncate">
+                          {emp.name}
+                        </h4>
+                        <div className="w-5 h-0.5 bg-primary-600 my-1 rounded-full opacity-60 group-hover:w-8 group-hover:bg-secondary-500 transition-all duration-300"></div>
+                        <p className="text-primary-600 font-semibold uppercase tracking-wide text-[9px] truncate">Article Assistant</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };
 
 export default Partners;
-
