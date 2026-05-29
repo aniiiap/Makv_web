@@ -80,6 +80,10 @@ const billSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isSent: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

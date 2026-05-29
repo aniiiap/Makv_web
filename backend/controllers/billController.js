@@ -451,25 +451,7 @@ exports.createBill = async (req, res) => {
     await newBill.save();
     console.log('Bill saved to database with ID:', newBill._id);
 
-    // 4. Send Email
-    console.log('Step 4: Sending Email to:', billData.sentToEmail);
-    try {
-      const emailResult = await sendEmail({
-        email: billData.sentToEmail,
-        subject: `Invoice Generated: ${billData.invoiceNo}`,
-        message: `Please find attached the invoice ${billData.invoiceNo}.\n\nYou can also download it directly from here: ${billData.pdfUrl}`,
-        attachments: [
-          {
-            filename: `Invoice-${billData.invoiceNo}.pdf`,
-            path: billData.pdfUrl,
-          },
-        ],
-      });
-      console.log('Email sent result:', emailResult);
-    } catch (emailError) {
-      console.error('Email Sending Warning:', emailError);
-      // Don't fail the request if email fails, but log it
-    }
+
 
     // 5. Update Task isBillable if taskId provided
     if (billData.taskId) {
@@ -482,39 +464,6 @@ exports.createBill = async (req, res) => {
       }
     }
 
-    // 6. Attach PDF to Office Client Documents
-    if (billData.buyerDetails && billData.buyerDetails.clientId) {
-      console.log('Step 6: Attaching document to client dashboard...');
-      try {
-        // We need an Office User ID (uploadedBy) for the document. 
-        // We'll try to find the office user who matches the Task Manager user's email.
-        const officeUser = await User.findOne({ email: req.user.email });
-
-        // Robust fallback: find any admin if the current user profile doesn't exist in office users
-        const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
-
-        if (uploadedBy) {
-          const doc = new Document({
-            clientId: billData.buyerDetails.clientId,
-            fileName: `${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
-            originalName: `Invoice-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
-            cloudinaryUrl: billData.pdfUrl,
-            fileType: 'application/pdf',
-            fileSize: pdfBuffer ? pdfBuffer.length : 0,
-            documentType: 'invoice',
-            uploadedBy: uploadedBy,
-            description: `Generated from Task Manager (Auto-attached)`
-          });
-          await doc.save();
-          console.log(`Document saved to client ${billData.buyerDetails.clientId}`);
-        } else {
-          console.warn(`Could not attach document: No valid admin/master user found for uploadedBy`);
-        }
-      } catch (clientDocErr) {
-        console.error('Failed to attach document to client dashboard:', clientDocErr);
-      }
-    }
-
     console.log('Bill generation workflow completed successfully.');
     res.status(201).json({ message: 'Bill generated successfully', bill: newBill });
   } catch (error) {
@@ -524,6 +473,79 @@ exports.createBill = async (req, res) => {
   }
 };
 
+exports.sendBill = async (req, res) => {
+  try {
+    console.log('Starting send bill workflow for ID:', req.params.id);
+    const bill = await Bill.findById(req.params.id);
+
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found' });
+    }
+
+    if (bill.isSent) {
+      return res.status(400).json({ message: 'Bill has already been sent' });
+    }
+
+    // 1. Send Email
+    console.log('Sending Email to:', bill.sentToEmail);
+    try {
+      const emailResult = await sendEmail({
+        email: bill.sentToEmail,
+        subject: `Invoice Generated: ${bill.invoiceNo}`,
+        message: `Please find attached the invoice ${bill.invoiceNo}.\n\nYou can also download it directly from here: ${bill.pdfUrl}`,
+        attachments: [
+          {
+            filename: `Invoice-${bill.invoiceNo.replace(/\//g, '_')}.pdf`,
+            path: bill.pdfUrl,
+          },
+        ],
+      });
+      console.log('Email sent result:', emailResult);
+    } catch (emailError) {
+      console.error('Email Sending Warning:', emailError);
+      throw new Error(`Email Sending Failed: ${emailError.message}`);
+    }
+
+    // 2. Attach PDF to Office Client Documents
+    if (bill.buyerDetails && bill.buyerDetails.clientId) {
+      console.log('Attaching document to client dashboard...');
+      try {
+        const officeUser = await User.findOne({ email: req.user.email });
+        const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
+
+        if (uploadedBy) {
+          const doc = new Document({
+            clientId: bill.buyerDetails.clientId,
+            fileName: `${bill.invoiceNo}.pdf`.replace(/\//g, '_'),
+            originalName: `Invoice-${bill.invoiceNo}.pdf`.replace(/\//g, '_'),
+            cloudinaryUrl: bill.pdfUrl,
+            fileType: 'application/pdf',
+            fileSize: 0, 
+            documentType: bill.invoiceNo.startsWith('HUF') ? 'huf-invoice' : 'invoice',
+            uploadedBy: uploadedBy,
+            description: `Generated from Task Manager (Auto-attached)`
+          });
+          await doc.save();
+          console.log(`Document saved to client ${bill.buyerDetails.clientId}`);
+        } else {
+          console.warn(`Could not attach document: No valid admin/master user found for uploadedBy`);
+        }
+      } catch (clientDocErr) {
+        console.error('Failed to attach document to client dashboard:', clientDocErr);
+      }
+    }
+
+    // Mark as sent
+    bill.isSent = true;
+    await bill.save();
+
+    console.log('Send bill workflow completed successfully.');
+    res.status(200).json({ message: 'Bill sent successfully', bill });
+  } catch (error) {
+    console.error('CRITICAL ERROR in sendBill:', error);
+    res.status(500).json({ message: 'Error sending bill', error: error.message });
+  }
+};
 
 
 // ... imports
@@ -877,27 +899,6 @@ exports.createHUFBill = async (req, res) => {
     await newBill.save();
     console.log('HUF Bill saved with ID:', newBill._id);
 
-    // 4. Send Email
-    if (billData.sentToEmail) {
-      console.log('HUF Step 4: Sending Email to:', billData.sentToEmail);
-      try {
-        await sendEmail({
-          email: billData.sentToEmail,
-          subject: `Invoice Generated: ${billData.invoiceNo}`,
-          message: `Please find attached the invoice ${billData.invoiceNo}.\n\nYou can also download it directly from here: ${billData.pdfUrl}`,
-          attachments: [
-            {
-              filename: `Invoice-${billData.invoiceNo}.pdf`,
-              path: billData.pdfUrl,
-            },
-          ],
-        });
-      } catch (emailError) {
-        console.error('HUF Email Warning:', emailError);
-      }
-    }
-
-    console.log('HUF Bill generation completed successfully.');
 
     // 5. Update Task isBillable if taskId provided
     if (billData.taskId) {
@@ -910,38 +911,6 @@ exports.createHUFBill = async (req, res) => {
       }
     }
 
-    // 6. Attach to client dashboard (if buyer has clientId)
-    if (billData.buyerDetails && billData.buyerDetails.clientId) {
-      try {
-        // We need an Office User ID (uploadedBy) for the document.
-        // We'll try to find the office user who matches the Task Manager user's email.
-        const User = require('../models/User');
-        const officeUser = await User.findOne({ email: req.user.email });
-
-        // Robust fallback: find any admin if the current user profile doesn't exist in office users
-        const uploadedBy = officeUser ? officeUser._id : (await User.findOne({ role: 'master' }) || await User.findOne({ role: 'admin' }))?._id;
-
-        if (uploadedBy) {
-          const doc = new Document({
-            clientId: billData.buyerDetails.clientId,
-            fileName: `HUF-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
-            originalName: `HUF-Invoice-${billData.invoiceNo}.pdf`.replace(/\//g, '_'),
-            cloudinaryUrl: billData.pdfUrl,
-            fileType: 'application/pdf',
-            fileSize: pdfBuffer ? pdfBuffer.length : 0,
-            documentType: 'huf-invoice',
-            uploadedBy: uploadedBy,
-            description: `Generated from Task Manager (Auto-attached)`
-          });
-          await doc.save();
-          console.log(`HUF Document saved to client ${billData.buyerDetails.clientId}`);
-        } else {
-          console.warn(`Could not attach HUF document: No valid admin/master user found for uploadedBy`);
-        }
-      } catch (docErr) {
-        console.error('Failed to attach HUF doc to client:', docErr);
-      }
-    }
 
     res.status(201).json({ message: 'HUF Bill generated successfully', bill: newBill });
   } catch (error) {
@@ -1217,25 +1186,6 @@ exports.createPaySlip = async (req, res) => {
       }
     }
 
-    // 4. Send Email (optional)
-    if (data.sentToEmail) {
-      console.log('PaySlip Step 4: Sending Email to:', data.sentToEmail);
-      try {
-        await sendEmail({
-          email: data.sentToEmail,
-          subject: `Payment Receipt: ${data.receiptNo}`,
-          message: `Dear ${data.clientName},\n\nPlease find attached your payment receipt ${data.receiptNo} for ₹${parseFloat(data.amount).toLocaleString('en-IN')}.\n\nThank you for your payment.\n\nRegards,\nMAKV & Associates`,
-          attachments: [
-            {
-              filename: `PaySlip-${data.receiptNo}.pdf`.replace(/\//g, '_'),
-              path: uploadResult.secure_url,
-            },
-          ],
-        });
-      } catch (emailError) {
-        console.error('PaySlip Email Warning:', emailError);
-      }
-    }
 
     console.log('Pay Slip generation completed successfully.');
     res.status(201).json({
@@ -1246,5 +1196,50 @@ exports.createPaySlip = async (req, res) => {
   } catch (error) {
     console.error('CRITICAL ERROR in createPaySlip:', error);
     res.status(500).json({ message: 'Error creating pay slip', error: error.message });
+  }
+};
+
+exports.sendPaySlip = async (req, res) => {
+  try {
+    const doc = await Document.findById(req.params.id).populate('clientId');
+    if (!doc || doc.documentType !== 'payslip') {
+      return res.status(404).json({ message: 'Pay Slip not found' });
+    }
+    
+    if (doc.isSent) {
+      return res.status(400).json({ message: 'Pay Slip already sent' });
+    }
+
+    
+
+    // We need the email address. For payslips, we might have sent it in the original request.
+    // If not, we use the client's email.
+    const emailTo = doc.clientId ? doc.clientId.email : null;
+    if (emailTo) {
+      try {
+        await sendEmail({
+          email: emailTo,
+          subject: `Payment Receipt: ${doc.originalName}`,
+          message: `Dear ${doc.clientId.name},\n\nPlease find attached your payment receipt.\n\nThank you for your payment.\n\nRegards,\nMAKV & Associates`,
+          attachments: [
+            {
+              filename: doc.fileName,
+              path: doc.cloudinaryUrl,
+            },
+          ],
+        });
+      } catch (emailError) {
+        console.error('PaySlip Email Sending Failed:', emailError);
+        throw new Error(`Email Sending Failed: ${emailError.message}`);
+      }
+    }
+
+    doc.isSent = true;
+    await doc.save();
+    
+    res.status(200).json({ message: 'Pay Slip sent successfully', doc });
+  } catch (error) {
+    console.error('CRITICAL ERROR in sendPaySlip:', error);
+    res.status(500).json({ message: 'Error sending pay slip', error: error.message });
   }
 };

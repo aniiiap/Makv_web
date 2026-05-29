@@ -231,7 +231,7 @@ const BillGenerator = () => {
             };
 
             await api.post('/bills', payload);
-            toast.success('Bill generated and sent successfully!');
+            toast.success('Bill generated successfully!');
             navigate('/taskflow/bills');
         } catch (error) {
             console.error('Error generating bill:', error);
@@ -560,7 +560,7 @@ const BillGenerator = () => {
                             ) : (
                                 <FiSave className="w-5 h-5" />
                             )}
-                            Generate & Send Invoice
+                            Generate Invoice
                         </button>
                     </div>
                 </form>
@@ -572,7 +572,7 @@ const BillGenerator = () => {
                 onConfirm={handleConfirmSubmit}
                 isLoading={loading}
                 title="Generate Tax Invoice?"
-                message="This will create a professional Tax Invoice PDF and send it to the client. Please ensure all items and totals are correct."
+                message="This will create a professional Tax Invoice PDF. You can send it to the client later from the Bills list."
                 confirmText="Generate Invoice"
             />
         </div>

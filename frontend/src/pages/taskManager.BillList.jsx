@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
-import { FiPlus, FiDownload, FiFileText, FiRefreshCw, FiSearch, FiCheck, FiX } from 'react-icons/fi';
+import { FiPlus, FiDownload, FiFileText, FiRefreshCw, FiSearch, FiCheck, FiX, FiSend } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
@@ -66,6 +66,20 @@ const BillList = () => {
             toast.dismiss();
             toast.error('Failed to update status');
             console.error(error);
+        }
+    };
+
+    const sendInvoice = async (billId, invoiceNo) => {
+        try {
+            const toastId = toast.loading(`Sending Invoice ${invoiceNo}...`);
+            await api.post(`/bills/${billId}/send`);
+            toast.dismiss(toastId);
+            toast.success(`Invoice ${invoiceNo} sent successfully!`);
+            setBills(prev => prev.map(b => b._id === billId ? { ...b, isSent: true } : b));
+        } catch (error) {
+            toast.dismiss();
+            toast.error(`Failed to send Invoice ${invoiceNo}`);
+            console.error('Send invoice error:', error);
         }
     };
 
@@ -277,8 +291,8 @@ const BillList = () => {
                                         <td className="p-4">{bill.buyerDetails.name}</td>
                                         <td className="p-4 text-right font-semibold">₹{bill.taxDetails?.totalAmount ? bill.taxDetails.totalAmount.toFixed(2) : (bill.totalAmount ? bill.totalAmount.toFixed(2) : '0.00')}</td>
                                         <td className="p-4 text-center">
-                                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${bill.isDone ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                                                {bill.isDone ? 'Done' : 'Sent'}
+                                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${bill.isDone ? 'bg-blue-100 text-blue-800' : (bill.isSent ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}`}>
+                                                {bill.isDone ? 'Done' : (bill.isSent ? 'Sent' : 'Generated')}
                                             </span>
                                         </td>
                                         <td className="p-4 text-center">
@@ -294,6 +308,15 @@ const BillList = () => {
                                                 >
                                                     {bill.isDone ? <><FiX className="w-3 h-3"/> Undo</> : <><FiCheck className="w-3 h-3"/> Done</>}
                                                 </button>
+                                                {!bill.isSent && (
+                                                    <button
+                                                        onClick={() => sendInvoice(bill._id, bill.invoiceNo)}
+                                                        className="px-3 py-1 text-xs rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1 transition-colors"
+                                                        title="Send Invoice to Client"
+                                                    >
+                                                        <FiSend className="w-3 h-3"/> Send
+                                                    </button>
+                                                )}
                                                 {bill.pdfUrl ? (
                                                     <>
                                                         <button

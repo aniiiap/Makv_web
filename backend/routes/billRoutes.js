@@ -10,5 +10,7 @@ router.get('/', protect, billController.getBills);
 router.get('/payslips', protect, authorizeRoles('admin'), billController.getPaySlips);
 router.get('/clients', protect, billController.getClientsForBilling);
 router.patch('/:id/status', protect, billController.updateBillStatus);
+router.post('/:id/send', protect, billController.sendBill);
+router.post('/payslip/:id/send', protect, authorizeRoles('admin'), billController.sendPaySlip);
 
 module.exports = router;

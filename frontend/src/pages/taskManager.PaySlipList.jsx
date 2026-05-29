@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
-import { FiPlus, FiDownload, FiFileText, FiExternalLink } from 'react-icons/fi';
+import { FiPlus, FiDownload, FiFileText, FiExternalLink, FiSend } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 const PaySlipList = () => {
@@ -24,6 +24,20 @@ const PaySlipList = () => {
             toast.error('Failed to load pay slips.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const sendPaySlip = async (psId, receiptName) => {
+        try {
+            const toastId = toast.loading(`Sending ${receiptName}...`);
+            await api.post(`/bills/payslip/${psId}/send`);
+            toast.dismiss(toastId);
+            toast.success(`${receiptName} sent successfully!`);
+            setPayslips(prev => prev.map(p => p._id === psId ? { ...p, isSent: true } : p));
+        } catch (error) {
+            toast.dismiss();
+            toast.error(`Failed to send ${receiptName}`);
+            console.error('Send payslip error:', error);
         }
     };
 
@@ -77,6 +91,7 @@ const PaySlipList = () => {
                                     <th className="p-4 font-semibold">Client</th>
                                     <th className="p-4 font-semibold">Date</th>
                                     <th className="p-4 font-semibold">Description</th>
+                                    <th className="p-4 font-semibold text-center">Status</th>
                                     <th className="p-4 font-semibold text-center">Actions</th>
                                 </tr>
                             </thead>
@@ -88,8 +103,22 @@ const PaySlipList = () => {
                                         <td className="p-4 text-sm">{new Date(ps.uploadedAt).toLocaleDateString()}</td>
                                         <td className="p-4 text-sm">{ps.description || '-'}</td>
                                         <td className="p-4 text-center">
+                                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${ps.isSent ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                {ps.isSent ? 'Sent' : 'Generated'}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-center">
                                             {ps.cloudinaryUrl ? (
                                                 <div className="flex items-center justify-center gap-3">
+                                                    {!ps.isSent && (
+                                                        <button
+                                                            onClick={() => sendPaySlip(ps._id, ps.originalName || ps.fileName)}
+                                                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                            title="Send to Client"
+                                                        >
+                                                            <FiSend className="w-5 h-5" />
+                                                        </button>
+                                                    )}
                                                     <a
                                                         href={ps.cloudinaryUrl}
                                                         target="_blank"

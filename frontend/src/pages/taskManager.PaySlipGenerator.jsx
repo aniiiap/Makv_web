@@ -90,8 +90,8 @@ const PaySlipGenerator = () => {
                 ...formData,
                 amount: parseFloat(formData.amount),
             });
-            toast.success('Pay Slip generated and sent successfully!');
-            navigate(-1);
+            toast.success('Pay Slip generated successfully!');
+            navigate('/taskflow/payslips');
         } catch (error) {
             console.error('Error generating pay slip:', error);
             toast.error('Failed to generate pay slip.');
@@ -217,7 +217,7 @@ const PaySlipGenerator = () => {
                 <button type="submit" disabled={loading}
                     className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 font-semibold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all">
                     <FiSave className="w-5 h-5" />
-                    {loading ? 'Generating...' : 'Generate & Send Pay Slip'}
+                    {loading ? 'Generating...' : 'Generate Pay Slip'}
                 </button>
             </form>
         </div>

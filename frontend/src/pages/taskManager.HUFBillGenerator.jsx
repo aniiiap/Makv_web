@@ -384,7 +384,7 @@ const HUFBillGenerator = () => {
                 <button type="submit" disabled={loading}
                     className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 font-semibold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
                     <FiSave className="w-5 h-5" />
-                    {loading ? 'Generating...' : 'Generate HUF Invoice'}
+                    {loading ? 'Generating...' : 'Generate HUF Tax Invoice'}
                 </button>
             </form>
 
@@ -393,9 +393,9 @@ const HUFBillGenerator = () => {
                 onClose={() => setIsConfirmModalOpen(false)}
                 onConfirm={handleConfirmSubmit}
                 isLoading={loading}
-                title="Generate HUF Invoice?"
-                message="This will create a professional HUF Invoice PDF and send it to the client. Please ensure all details are correct."
-                confirmText="Generate HUF Invoice"
+                title="Generate HUF Tax Invoice?"
+                message="This will create a professional HUF Tax Invoice PDF. You can send it to the client later from the Bills list."
+                confirmText="Generate Invoice"
             />
         </div>
     );

@@ -52,6 +52,10 @@ const documentSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  isSent: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 module.exports = mongoose.model('Document', documentSchema);
