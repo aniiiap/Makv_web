@@ -11,6 +11,10 @@ const teamMemberSchema = new mongoose.Schema({
     enum: ['owner', 'admin', 'member'],
     default: 'member',
   },
+  billingAccess: {
+    type: Boolean,
+    default: false,
+  },
   joinedAt: {
     type: Date,
     default: Date.now,
@@ -43,6 +47,10 @@ const teamSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    billingEnabled: {
+      type: Boolean,
+      default: false,
     },
   },
   {

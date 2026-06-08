@@ -7,6 +7,7 @@ import { TimerProvider } from '../context/taskManager.TimerContext';
 import Layout from './taskManager.Layout';
 import PrivateRoute from './taskManager.PrivateRoute';
 import AdminRoute from './taskManager.AdminRoute';
+import BillingRoute from './taskManager.BillingRoute';
 import TaskManagerLogin from '../pages/taskManager.Login';
 import TaskManagerRegister from '../pages/taskManager.Register';
 import ForgotPassword from '../pages/taskManager.ForgotPassword';
@@ -24,9 +25,11 @@ import PaySlipGenerator from '../pages/taskManager.PaySlipGenerator';
 import PaySlipList from '../pages/taskManager.PaySlipList';
 import AdminDashboard from '../pages/taskManager.AdminDashboard';
 import ManageUsers from '../pages/taskManager.ManageUsers';
+import BillingAccessControl from '../pages/taskManager.BillingAccessControl';
 import FirstLoginPasswordSetup from '../pages/taskManager.FirstLoginPasswordSetup';
 import Clients from '../pages/taskManager.Clients';
 import ClientDetail from '../pages/taskManager.ClientDetail';
+import MyDailyWork from '../pages/taskManager.MyDailyWork';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const clientIdToUse = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.trim() !== ''
@@ -79,6 +82,13 @@ function TaskFlowApp() {
                   <PrivateRoute>
                     <Layout>
                       <TaskManagerCompletedTasks />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="my-daily-work" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <MyDailyWork />
                     </Layout>
                   </PrivateRoute>
                 } />
@@ -156,6 +166,11 @@ function TaskFlowApp() {
                   <PrivateRoute>
                     <ManageUsers />
                   </PrivateRoute>
+                } />
+                <Route path="admin/billing-access" element={
+                  <AdminRoute>
+                    <BillingAccessControl />
+                  </AdminRoute>
                 } />
                 <Route path="admin/payslip" element={
                   <AdminRoute>

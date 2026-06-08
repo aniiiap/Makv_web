@@ -11,6 +11,11 @@ const { sendEmail } = require('../utils/taskManager.emailService');
 const { Readable } = require('stream');
 const logoBase64 = require('../utils/logoBase64');
 const signatureBase64 = require('../utils/signatureBase64');
+const {
+  userHasBillingAccess,
+  buildBillVisibilityFilter,
+  userCanAccessBill,
+} = require('../utils/billingAccess');
 
 const generatePDF = async (billData) => {
   const browser = await puppeteer.launch({
@@ -482,6 +487,10 @@ exports.sendBill = async (req, res) => {
       return res.status(404).json({ message: 'Bill not found' });
     }
 
+    if (!(await userCanAccessBill(req.user, bill))) {
+      return res.status(403).json({ message: 'Not authorized to access this bill' });
+    }
+
     if (bill.isSent) {
       return res.status(400).json({ message: 'Bill has already been sent' });
     }
@@ -552,8 +561,10 @@ exports.sendBill = async (req, res) => {
 
 exports.getBills = async (req, res) => {
   try {
-    // All bills visible to all authenticated members
-    const bills = await Bill.find()
+    const visibilityFilter = await buildBillVisibilityFilter(req.user);
+    const query = visibilityFilter || {};
+
+    const bills = await Bill.find(query)
       .sort({ createdAt: -1 })
       .populate('team', 'name');
 
@@ -561,6 +572,16 @@ exports.getBills = async (req, res) => {
   } catch (error) {
     console.error('Error fetching bills:', error);
     res.status(500).json({ message: 'Error fetching bills', error: error.message });
+  }
+};
+
+exports.getBillAccess = async (req, res) => {
+  try {
+    const canAccess = await userHasBillingAccess(req.user);
+    res.status(200).json({ canAccess });
+  } catch (error) {
+    console.error('Error checking bill access:', error);
+    res.status(500).json({ message: 'Error checking bill access', error: error.message });
   }
 };
 
@@ -925,7 +946,11 @@ exports.updateBillStatus = async (req, res) => {
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found' });
     }
-    
+
+    if (!(await userCanAccessBill(req.user, bill))) {
+      return res.status(403).json({ message: 'Not authorized to access this bill' });
+    }
+
     bill.isDone = req.body.isDone !== undefined ? req.body.isDone : !bill.isDone;
     await bill.save();
     

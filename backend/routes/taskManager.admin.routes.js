@@ -12,6 +12,9 @@ const {
     bulkDeleteUsers,
     getUserStats,
     getUsersByTeam,
+    getBillingAccessSettings,
+    updateTeamBillingAccess,
+    updateMemberBillingAccess,
 } = require('../controllers/taskManager.admin.controller');
 
 // All routes require authentication and admin role
@@ -27,5 +30,8 @@ router.get('/stats', getUserStats);
 router.patch('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deactivateUser);
 router.delete('/users/:id/permanent', permanentlyDeleteUser);
+router.get('/billing-access', getBillingAccessSettings);
+router.patch('/billing-access/team/:teamId', updateTeamBillingAccess);
+router.patch('/billing-access/team/:teamId/member/:userId', updateMemberBillingAccess);
 
 module.exports = router;

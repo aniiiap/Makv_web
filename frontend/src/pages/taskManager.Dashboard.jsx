@@ -18,17 +18,19 @@ const Dashboard = () => {
     // Load from localStorage on component mount
     return localStorage.getItem('teamFilter') || '';
   });
-  const { isAuthenticated } = useTaskManagerAuth();
+  const { isAuthenticated, user } = useTaskManagerAuth();
+  const [canAccessBills, setCanAccessBills] = useState(false);
   const { isDark } = useTheme();
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchTeams();
       fetchDashboardData();
+      fetchBillAccess();
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?._id, user?.id]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -40,7 +42,7 @@ const Dashboard = () => {
       }
       fetchDashboardData();
     }
-  }, [selectedTeam, isAuthenticated]);
+  }, [selectedTeam, isAuthenticated, user?._id, user?.id]);
 
   // Listen for filter changes from notifications
   useEffect(() => {
@@ -55,6 +57,16 @@ const Dashboard = () => {
       window.removeEventListener('teamFilterChanged', handleFilterChange);
     };
   }, []);
+
+  const fetchBillAccess = async () => {
+    try {
+      const response = await api.get('/bills/access');
+      setCanAccessBills(response?.canAccess === true);
+    } catch (error) {
+      console.error('Error checking bill access:', error);
+      setCanAccessBills(false);
+    }
+  };
 
   const fetchTeams = async () => {
     try {
@@ -72,6 +84,9 @@ const Dashboard = () => {
       if (selectedTeam) {
         params.team = selectedTeam;
       }
+      if (user?._id || user?.id) {
+        params.assignedTo = user._id || user.id;
+      }
 
       const [statsResponse, tasksResponse] = await Promise.all([
         api.get('/tasks/stats/dashboard', { params: selectedTeam ? { team: selectedTeam } : {} }),
@@ -79,7 +94,7 @@ const Dashboard = () => {
       ]);
 
       setStats(statsResponse.data);
-      setRecentTasks(tasksResponse.data || []);
+      setRecentTasks((tasksResponse.data || []).slice(0, 5));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -173,13 +188,13 @@ const Dashboard = () => {
       color: 'from-pink-500 to-pink-600',
       link: '/taskflow/tasks?createdBy=me',
     },
-    {
+    ...(canAccessBills ? [{
       name: 'Bills & Invoices',
-      value: 'View', // Or fetch count if available
+      value: 'View',
       icon: FiFileText,
       color: 'from-teal-500 to-teal-600',
       link: '/taskflow/bills',
-    },
+    }] : []),
   ];
 
   const getStatusColor = (status) => {
@@ -335,12 +350,12 @@ const Dashboard = () => {
       <div className={`rounded-xl shadow-md border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
         <div className={`p-4 sm:p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-            <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Tasks</h2>
+            <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>My Recent Tasks</h2>
             <Link
-              to="/taskflow/tasks"
+              to="/taskflow/tasks?assignedTo=me"
               className="flex items-center gap-1 text-primary-600 hover:text-primary-700 text-xs sm:text-sm font-medium transition-colors"
             >
-              View all
+              View my tasks
               <FiArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </Link>
           </div>

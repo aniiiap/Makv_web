@@ -1301,6 +1301,85 @@ exports.getDailyTimerStats = async (req, res, next) => {
   }
 };
 
+// @desc    Get logged-in user's task work history for a specific day
+// @route   GET /api/tasks/stats/my-daily-work
+// @access  Private (own data only)
+exports.getMyDailyWork = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    const [year, month, day] = dateStr.split('-').map(Number);
+
+    if (!year || !month || !day) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Use YYYY-MM-DD.',
+      });
+    }
+
+    const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+    const tasks = await TaskManagerTask.find({
+      timeEntries: {
+        $elemMatch: {
+          userId: new mongoose.Types.ObjectId(userId),
+          startTime: { $gte: dayStart, $lte: dayEnd },
+        },
+      },
+    })
+      .populate('team', 'name')
+      .select('title status team timeEntries');
+
+    let totalSeconds = 0;
+    const taskDetails = [];
+
+    tasks.forEach((task) => {
+      const userEntries = task.timeEntries.filter(
+        (entry) =>
+          entry.userId &&
+          entry.userId.toString() === userId.toString() &&
+          entry.startTime >= dayStart &&
+          entry.startTime <= dayEnd
+      );
+      const taskSeconds = userEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+
+      if (taskSeconds > 0) {
+        totalSeconds += taskSeconds;
+        taskDetails.push({
+          id: task._id,
+          title: task.title,
+          status: task.status,
+          team: task.team?.name || null,
+          timeSpent: taskSeconds,
+          hours: Math.floor(taskSeconds / 3600),
+          minutes: Math.floor((taskSeconds % 3600) / 60),
+        });
+      }
+    });
+
+    taskDetails.sort((a, b) => b.timeSpent - a.timeSpent);
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        date: dateStr,
+        totalSeconds,
+        hours,
+        minutes,
+        formatted: `${hours}h ${minutes}m`,
+        tasks: taskDetails,
+        taskCount: taskDetails.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get task activity logs
 // @route   GET /api/tasks/:id/activities
 // @access  Private

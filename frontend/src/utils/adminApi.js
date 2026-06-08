@@ -62,6 +62,22 @@ export const adminApi = {
         const response = await api.post(`${API_BASE}/users/bulk-delete`, { userIds });
         return response;
     },
+
+    // Billing access control
+    getBillingAccessSettings: async () => {
+        const response = await api.get(`${API_BASE}/billing-access`);
+        return response;
+    },
+
+    updateTeamBillingAccess: async (teamId, billingEnabled) => {
+        const response = await api.patch(`${API_BASE}/billing-access/team/${teamId}`, { billingEnabled });
+        return response;
+    },
+
+    updateMemberBillingAccess: async (teamId, userId, billingAccess) => {
+        const response = await api.patch(`${API_BASE}/billing-access/team/${teamId}/member/${userId}`, { billingAccess });
+        return response;
+    },
 };
 
 export default adminApi;

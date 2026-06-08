@@ -68,18 +68,23 @@ const DailyProgress = () => {
   if (!isAuthenticated) return null;
 
   return (
-    <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}>
+    <Link
+      to="/taskflow/my-daily-work"
+      className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:border-primary-400 ${isDark ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}
+      title="View your daily work history"
+    >
       <FiClock className="w-4 h-4 text-primary-500" />
       <span className="text-xs font-semibold whitespace-nowrap">
         Today: <span className={isDark ? 'text-white' : 'text-gray-900'}>{stats?.hours || 0}h {stats?.minutes || 0}m</span>
       </span>
-    </div>
+    </Link>
   );
 };
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [canAccessBills, setCanAccessBills] = useState(false);
   const { user, logout, isAuthenticated, googleLogin } = useTaskManagerAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
@@ -88,13 +93,33 @@ const Layout = ({ children }) => {
     GOOGLE_CLIENT_ID.trim() !== '' &&
     GOOGLE_CLIENT_ID !== 'placeholder-client-id';
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setCanAccessBills(false);
+      return;
+    }
+
+    const fetchBillAccess = async () => {
+      try {
+        const response = await api.get('/bills/access');
+        setCanAccessBills(response?.canAccess === true);
+      } catch (error) {
+        console.error('Error checking bill access:', error);
+        setCanAccessBills(false);
+      }
+    };
+
+    fetchBillAccess();
+  }, [isAuthenticated, user?.role]);
+
   const navigation = [
     { name: 'Dashboard', href: '/taskflow/dashboard', icon: FiLayout },
     { name: 'Teams', href: '/taskflow/teams', icon: FiUsers },
     { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
+    { name: 'My Daily Work', href: '/taskflow/my-daily-work', icon: FiClock },
     { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },
-    { name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText },
+    ...(canAccessBills ? [{ name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText }] : []),
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
   ];

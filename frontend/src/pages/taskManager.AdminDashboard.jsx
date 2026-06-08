@@ -128,6 +128,19 @@ const AdminDashboard = () => {
                         </button>
 
                         <button
+                            onClick={() => navigate('/taskflow/admin/billing-access')}
+                            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-teal-500 hover:bg-teal-50 transition-all group"
+                        >
+                            <div className="bg-teal-100 p-3 rounded-lg group-hover:bg-teal-200 transition-colors">
+                                <FiFileText className="w-6 h-6 text-teal-600" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-gray-900">Billing Access Control</h3>
+                                <p className="text-sm text-gray-600">Grant billing access to teams and members</p>
+                            </div>
+                        </button>
+
+                        <button
                             onClick={() => navigate('/taskflow/admin/payslip')}
                             className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-amber-500 hover:bg-amber-50 transition-all group"
                         >

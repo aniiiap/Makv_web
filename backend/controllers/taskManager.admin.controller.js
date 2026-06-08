@@ -490,3 +490,121 @@ exports.getUsersByTeam = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @desc    Get billing access settings for all teams
+ * @route   GET /api/taskflow/admin/billing-access
+ * @access  Private/Admin
+ */
+exports.getBillingAccessSettings = async (req, res, next) => {
+    try {
+        const teams = await TaskManagerTeam.find({ isActive: true })
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name billingEnabled members owner')
+            .sort('name');
+
+        res.json({
+            success: true,
+            teams,
+        });
+    } catch (error) {
+        console.error('Get billing access settings error:', error);
+        next(error);
+    }
+};
+
+/**
+ * @desc    Enable or disable billing for an entire team
+ * @route   PATCH /api/taskflow/admin/billing-access/team/:teamId
+ * @access  Private/Admin
+ */
+exports.updateTeamBillingAccess = async (req, res, next) => {
+    try {
+        const { billingEnabled } = req.body;
+
+        if (typeof billingEnabled !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'billingEnabled must be a boolean',
+            });
+        }
+
+        const team = await TaskManagerTeam.findById(req.params.teamId);
+        if (!team) {
+            return res.status(404).json({
+                success: false,
+                message: 'Team not found',
+            });
+        }
+
+        team.billingEnabled = billingEnabled;
+        await team.save();
+
+        const populatedTeam = await TaskManagerTeam.findById(team._id)
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name billingEnabled members owner');
+
+        res.json({
+            success: true,
+            team: populatedTeam,
+        });
+    } catch (error) {
+        console.error('Update team billing access error:', error);
+        next(error);
+    }
+};
+
+/**
+ * @desc    Grant or revoke billing access for a specific team member
+ * @route   PATCH /api/taskflow/admin/billing-access/team/:teamId/member/:userId
+ * @access  Private/Admin
+ */
+exports.updateMemberBillingAccess = async (req, res, next) => {
+    try {
+        const { billingAccess } = req.body;
+
+        if (typeof billingAccess !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'billingAccess must be a boolean',
+            });
+        }
+
+        const team = await TaskManagerTeam.findById(req.params.teamId);
+        if (!team) {
+            return res.status(404).json({
+                success: false,
+                message: 'Team not found',
+            });
+        }
+
+        const member = team.members.find(
+            (m) => m.user && m.user.toString() === req.params.userId
+        );
+
+        if (!member) {
+            return res.status(404).json({
+                success: false,
+                message: 'Member not found in this team',
+            });
+        }
+
+        member.billingAccess = billingAccess;
+        await team.save();
+
+        const populatedTeam = await TaskManagerTeam.findById(team._id)
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name billingEnabled members owner');
+
+        res.json({
+            success: true,
+            team: populatedTeam,
+        });
+    } catch (error) {
+        console.error('Update member billing access error:', error);
+        next(error);
+    }
+};
