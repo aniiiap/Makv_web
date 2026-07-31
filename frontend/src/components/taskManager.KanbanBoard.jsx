@@ -155,7 +155,7 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
                     {task.assignedTo && (
                       <div className="flex items-center gap-1">
                         <FiUser className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
@@ -164,14 +164,21 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                         </span>
                       </div>
                     )}
-                    {task.dueDate && (
-                      <div className="flex items-center gap-1">
-                        <FiCalendar className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <div className="flex items-center gap-2 text-right ml-auto">
+                      {task.createdAt && (
                         <span className="text-xs">
-                          {new Date(task.dueDate).toLocaleDateString()}
+                          Created at: {new Date(task.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-')}
                         </span>
-                      </div>
-                    )}
+                      )}
+                      {task.dueDate && (
+                        <div className="flex items-center gap-1">
+                          <FiCalendar className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                          <span className="text-xs">
+                            {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

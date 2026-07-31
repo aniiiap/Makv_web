@@ -1181,12 +1181,7 @@ const Tasks = ({ openCreate = false }) => {
                           Client: {task.client.name || task.client.companyName || 'Client'}
                         </Link>
                       )}
-                      {task.assignedTo && (
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                          <FiUser className="w-3 h-3" />
-                          {task.assignedTo.name || 'Unassigned'}
-                        </span>
-                      )}
+
                       {task.dueDate && (
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${new Date(task.dueDate) < new Date() &&
@@ -1213,6 +1208,21 @@ const Tasks = ({ openCreate = false }) => {
                         ))}
                       </div>
                     )}
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="flex items-center">
+                        {task.assignedTo && (
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <FiUser className="w-3.5 h-3.5" />
+                            {task.assignedTo.name || 'Unassigned'}
+                          </span>
+                        )}
+                      </div>
+                      {task.createdAt && (
+                        <span className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Created at: {new Date(task.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
