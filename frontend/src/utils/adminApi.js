@@ -78,6 +78,22 @@ export const adminApi = {
         const response = await api.patch(`${API_BASE}/billing-access/team/${teamId}/member/${userId}`, { billingAccess });
         return response;
     },
+
+    // Clients access control
+    getClientsAccessSettings: async () => {
+        const response = await api.get(`${API_BASE}/clients-access`);
+        return response;
+    },
+
+    updateTeamClientsAccess: async (teamId, clientsEnabled) => {
+        const response = await api.patch(`${API_BASE}/clients-access/team/${teamId}`, { clientsEnabled });
+        return response;
+    },
+
+    updateMemberClientsAccess: async (teamId, userId, clientsAccess) => {
+        const response = await api.patch(`${API_BASE}/clients-access/team/${teamId}/member/${userId}`, { clientsAccess });
+        return response;
+    },
 };
 
 export default adminApi;

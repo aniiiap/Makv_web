@@ -85,6 +85,7 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [canAccessBills, setCanAccessBills] = useState(false);
+  const [canAccessClients, setCanAccessClients] = useState(false);
   const { user, logout, isAuthenticated, googleLogin } = useTaskManagerAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
@@ -96,26 +97,32 @@ const Layout = ({ children }) => {
   useEffect(() => {
     if (!isAuthenticated) {
       setCanAccessBills(false);
+      setCanAccessClients(false);
       return;
     }
 
-    const fetchBillAccess = async () => {
+    const fetchAccessSettings = async () => {
       try {
-        const response = await api.get('/bills/access');
-        setCanAccessBills(response?.canAccess === true);
+        const [billsRes, clientsRes] = await Promise.all([
+          api.get('/bills/access').catch(() => ({ canAccess: false })),
+          api.get('/clients/access').catch(() => ({ canAccess: false }))
+        ]);
+        setCanAccessBills(billsRes?.canAccess === true);
+        setCanAccessClients(clientsRes?.canAccess === true);
       } catch (error) {
-        console.error('Error checking bill access:', error);
+        console.error('Error checking access settings:', error);
         setCanAccessBills(false);
+        setCanAccessClients(false);
       }
     };
 
-    fetchBillAccess();
+    fetchAccessSettings();
   }, [isAuthenticated, user?.role]);
 
   const navigation = [
     { name: 'Dashboard', href: '/taskflow/dashboard', icon: FiLayout },
     { name: 'Teams', href: '/taskflow/teams', icon: FiUsers },
-    { name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase },
+    ...(canAccessClients ? [{ name: 'Clients', href: '/taskflow/clients', icon: FiBriefcase }] : []),
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'My Daily Work', href: '/taskflow/my-daily-work', icon: FiClock },
     { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },

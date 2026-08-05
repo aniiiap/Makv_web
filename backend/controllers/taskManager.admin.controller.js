@@ -608,3 +608,121 @@ exports.updateMemberBillingAccess = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @desc    Get clients access settings for all teams
+ * @route   GET /api/taskflow/admin/clients-access
+ * @access  Private/Admin
+ */
+exports.getClientsAccessSettings = async (req, res, next) => {
+    try {
+        const teams = await TaskManagerTeam.find({ isActive: true })
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name clientsEnabled members owner')
+            .sort('name');
+
+        res.json({
+            success: true,
+            teams,
+        });
+    } catch (error) {
+        console.error('Get clients access settings error:', error);
+        next(error);
+    }
+};
+
+/**
+ * @desc    Enable or disable clients access for an entire team
+ * @route   PATCH /api/taskflow/admin/clients-access/team/:teamId
+ * @access  Private/Admin
+ */
+exports.updateTeamClientsAccess = async (req, res, next) => {
+    try {
+        const { clientsEnabled } = req.body;
+
+        if (typeof clientsEnabled !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'clientsEnabled must be a boolean',
+            });
+        }
+
+        const team = await TaskManagerTeam.findById(req.params.teamId);
+        if (!team) {
+            return res.status(404).json({
+                success: false,
+                message: 'Team not found',
+            });
+        }
+
+        team.clientsEnabled = clientsEnabled;
+        await team.save();
+
+        const populatedTeam = await TaskManagerTeam.findById(team._id)
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name clientsEnabled members owner');
+
+        res.json({
+            success: true,
+            team: populatedTeam,
+        });
+    } catch (error) {
+        console.error('Update team clients access error:', error);
+        next(error);
+    }
+};
+
+/**
+ * @desc    Grant or revoke clients access for a specific team member
+ * @route   PATCH /api/taskflow/admin/clients-access/team/:teamId/member/:userId
+ * @access  Private/Admin
+ */
+exports.updateMemberClientsAccess = async (req, res, next) => {
+    try {
+        const { clientsAccess } = req.body;
+
+        if (typeof clientsAccess !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'clientsAccess must be a boolean',
+            });
+        }
+
+        const team = await TaskManagerTeam.findById(req.params.teamId);
+        if (!team) {
+            return res.status(404).json({
+                success: false,
+                message: 'Team not found',
+            });
+        }
+
+        const member = team.members.find(
+            (m) => m.user && m.user.toString() === req.params.userId
+        );
+
+        if (!member) {
+            return res.status(404).json({
+                success: false,
+                message: 'Member not found in this team',
+            });
+        }
+
+        member.clientsAccess = clientsAccess;
+        await team.save();
+
+        const populatedTeam = await TaskManagerTeam.findById(team._id)
+            .populate('members.user', 'name email avatar')
+            .populate('owner', 'name email')
+            .select('name clientsEnabled members owner');
+
+        res.json({
+            success: true,
+            team: populatedTeam,
+        });
+    } catch (error) {
+        console.error('Update member clients access error:', error);
+        next(error);
+    }
+};

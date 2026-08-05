@@ -15,6 +15,9 @@ const {
     getBillingAccessSettings,
     updateTeamBillingAccess,
     updateMemberBillingAccess,
+    getClientsAccessSettings,
+    updateTeamClientsAccess,
+    updateMemberClientsAccess,
 } = require('../controllers/taskManager.admin.controller');
 
 // All routes require authentication and admin role
@@ -33,5 +36,8 @@ router.delete('/users/:id/permanent', permanentlyDeleteUser);
 router.get('/billing-access', getBillingAccessSettings);
 router.patch('/billing-access/team/:teamId', updateTeamBillingAccess);
 router.patch('/billing-access/team/:teamId/member/:userId', updateMemberBillingAccess);
+router.get('/clients-access', getClientsAccessSettings);
+router.patch('/clients-access/team/:teamId', updateTeamClientsAccess);
+router.patch('/clients-access/team/:teamId/member/:userId', updateMemberClientsAccess);
 
 module.exports = router;

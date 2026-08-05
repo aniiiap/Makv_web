@@ -26,6 +26,7 @@ import PaySlipList from '../pages/taskManager.PaySlipList';
 import AdminDashboard from '../pages/taskManager.AdminDashboard';
 import ManageUsers from '../pages/taskManager.ManageUsers';
 import BillingAccessControl from '../pages/taskManager.BillingAccessControl';
+import ClientsAccessControl from '../pages/taskManager.ClientsAccessControl';
 import FirstLoginPasswordSetup from '../pages/taskManager.FirstLoginPasswordSetup';
 import Clients from '../pages/taskManager.Clients';
 import ClientDetail from '../pages/taskManager.ClientDetail';
@@ -170,6 +171,11 @@ function TaskFlowApp() {
                 <Route path="admin/billing-access" element={
                   <AdminRoute>
                     <BillingAccessControl />
+                  </AdminRoute>
+                } />
+                <Route path="admin/clients-access" element={
+                  <AdminRoute>
+                    <ClientsAccessControl />
                   </AdminRoute>
                 } />
                 <Route path="admin/payslip" element={

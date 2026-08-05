@@ -59,6 +59,16 @@ const HUFBillGenerator = () => {
             try {
                 const taskRes = await api.get(`/tasks/${taskId}`);
                 const task = taskRes?.data || taskRes;
+
+                const taskSubDesc = task.title + (task.description ? ` - ${task.description}` : '');
+                
+                setFormData(prev => ({
+                    ...prev,
+                    items: prev.items.map((item, index) => 
+                        index === 0 ? { ...item, subDescription: taskSubDesc } : item
+                    )
+                }));
+
                 if (task?.client) {
                     const clientId = task.client._id || task.client;
                     const clientRes = await api.get(`/clients/${clientId}`);

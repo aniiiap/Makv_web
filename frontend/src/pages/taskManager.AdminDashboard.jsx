@@ -141,6 +141,19 @@ const AdminDashboard = () => {
                         </button>
 
                         <button
+                            onClick={() => navigate('/taskflow/admin/clients-access')}
+                            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
+                        >
+                            <div className="bg-indigo-100 p-3 rounded-lg group-hover:bg-indigo-200 transition-colors">
+                                <FiUsers className="w-6 h-6 text-indigo-600" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-gray-900">Clients Access Control</h3>
+                                <p className="text-sm text-gray-600">Grant clients access to teams and members</p>
+                            </div>
+                        </button>
+
+                        <button
                             onClick={() => navigate('/taskflow/admin/payslip')}
                             className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-amber-500 hover:bg-amber-50 transition-all group"
                         >

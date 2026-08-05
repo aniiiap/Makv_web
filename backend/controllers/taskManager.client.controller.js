@@ -2,6 +2,21 @@ const Client = require('../models/Client');
 const TaskManagerTask = require('../models/taskManager.Task');
 const TaskManagerUser = require('../models/TaskManagerUser');
 
+const { userHasClientsAccess } = require('../utils/clientsAccess');
+
+// @desc    Check if user has clients access
+// @route   GET /api/taskflow/clients/access
+// @access  Private
+exports.checkClientsAccess = async (req, res, next) => {
+    try {
+        const canAccess = await userHasClientsAccess(req.user);
+        res.status(200).json({ success: true, canAccess });
+    } catch (error) {
+        console.error('Error in checkClientsAccess:', error);
+        res.status(500).json({ success: false, message: 'Server error checking clients access' });
+    }
+};
+
 // @desc    Get all clients with task counts
 // @route   GET /api/taskflow/clients
 // @access  Private

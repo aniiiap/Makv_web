@@ -15,6 +15,10 @@ const teamMemberSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  clientsAccess: {
+    type: Boolean,
+    default: false,
+  },
   joinedAt: {
     type: Date,
     default: Date.now,
@@ -49,6 +53,10 @@ const teamSchema = new mongoose.Schema(
       default: true,
     },
     billingEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    clientsEnabled: {
       type: Boolean,
       default: false,
     },
