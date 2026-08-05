@@ -20,8 +20,12 @@ async function getUserBillingTeams(user) {
 }
 
 async function userHasBillingAccess(user) {
-  
-  return true;
+  if (user.role === 'admin') {
+    return true;
+  }
+
+  const billingTeams = await getUserBillingTeams(user);
+  return billingTeams && billingTeams.length > 0;
 }
 
 async function getUserBillingTeamIds(user) {
