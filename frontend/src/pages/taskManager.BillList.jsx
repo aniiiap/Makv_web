@@ -20,6 +20,9 @@ const BillList = () => {
         }
 
         const excelData = filteredBills.map(bill => ({
+            'Client Name': bill.buyerDetails?.name || 'N/A',
+            'Task Title': bill.taskId?.title || 'N/A',
+            'Task Description': bill.taskId?.description || 'N/A',
             'GSTIN/UIN of Recipient': bill.buyerDetails?.gstin || 'N/A',
             'Invoice Number': bill.invoiceNo || '',
             'Invoice date': bill.date ? new Date(bill.date).toLocaleDateString('en-GB') : '',

@@ -566,7 +566,8 @@ exports.getBills = async (req, res) => {
 
     const bills = await Bill.find(query)
       .sort({ createdAt: -1 })
-      .populate('team', 'name');
+      .populate('team', 'name')
+      .populate('taskId', 'title description');
 
     res.status(200).json(bills);
   } catch (error) {

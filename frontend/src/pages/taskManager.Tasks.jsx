@@ -685,7 +685,7 @@ const Tasks = ({ openCreate = false }) => {
         'Due Date': task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'None',
         'Billable': task.isBillable ? 'Yes' : 'No',
         'Tags': task.tags ? task.tags.join(', ') : '',
-        'Total Time Spent (Hours)': task.timeSpent ? (task.timeSpent.hours + (task.timeSpent.minutes / 60)).toFixed(2) : '0.00',
+        'Total Time Spent (Hours)': task.timeSpent ? (task.timeSpent / 3600).toFixed(2) : '0.00',
         'Created At': task.createdAt ? new Date(task.createdAt).toLocaleDateString() : ''
       };
     });

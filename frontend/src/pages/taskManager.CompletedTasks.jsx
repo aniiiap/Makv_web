@@ -199,15 +199,23 @@ const CompletedTasks = () => {
 
   const handleExportExcel = () => {
     if (tasks.length === 0) return;
-    const excelData = tasks.map(task => ({
-      'Task Name': task.title || '',
-      'Team': task.team?.name || 'Personal',
-      'Assignee': task.assignedTo?.name || 'Unassigned',
-      'Completed Date': task.updatedAt ? new Date(task.updatedAt).toLocaleDateString() : 'N/A',
-      'Priority': task.priority || '',
-      'Billable': task.isBillable ? 'Yes' : 'No',
-      'Time Spent': task.timeSpent ? `${task.timeSpent.hours}h ${task.timeSpent.minutes}m` : '0h 0m',
-    }));
+    const excelData = tasks.map(task => {
+      const totalSeconds = task.timeSpent || 0;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      
+      return {
+        'Client Name': task.client?.name || task.client?.companyName || 'N/A',
+        'Task Name': task.title || '',
+        'Task Description': task.description || 'N/A',
+        'Team': task.team?.name || 'Personal',
+        'Assignee': task.assignedTo?.name || 'Unassigned',
+        'Completed Date': task.updatedAt ? new Date(task.updatedAt).toLocaleDateString() : 'N/A',
+        'Priority': task.priority || '',
+        'Billable': task.isBillable ? 'Yes' : 'No',
+        'Time Spent': `${hours}h ${minutes}m`,
+      };
+    });
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Completed Tasks");
