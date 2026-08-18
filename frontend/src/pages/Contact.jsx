@@ -61,7 +61,7 @@ const Contact = () => {
     },
     {
       city: 'Bhilwara',
-      address: 'Office No 4&5, Second Floor, NTC, Bhilwara, Rajasthan - 311001',
+      address: 'Plot No. 60, 61, 62, Navkar Trade Centre, Opposite Mirchi Mandi, Near Gokul Dham, Bhilwara, Rajasthan, 311001',
       mobile: '+91 9950987445',
       email: 'atalmurli@yahoo.in',
     },

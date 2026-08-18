@@ -2,7 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const { Resend } = require('resend');
+const rateLimit = require('express-rate-limit');
 const Contact = require('../models/Contact');
+
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 requests per window (1 hour)
+  message: { success: false, message: 'Too many contact requests from this IP, please try again after an hour' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configure Resend client using API key
 // Make sure to set RESEND_API_KEY and RESEND_FROM_EMAIL in Render
@@ -22,6 +31,7 @@ try {
 // @access  Public
 router.post(
   '/',
+  contactLimiter,
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Please provide a valid email'),
@@ -36,6 +46,7 @@ router.post(
       }
 
       const { name, email, phone, message, service } = req.body;
+      const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown IP';
 
       const contact = new Contact({
         name,
@@ -43,6 +54,7 @@ router.post(
         phone,
         message,
         service,
+        ipAddress,
       });
 
       await contact.save();

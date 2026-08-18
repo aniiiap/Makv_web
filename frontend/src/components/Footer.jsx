@@ -101,7 +101,7 @@ const Footer = () => {
                 <p className="font-semibold text-white mb-2">Bhilwara</p>
                 <p className="flex items-start space-x-2 mb-1">
                   <FaMapMarkerAlt className="text-primary-400 flex-shrink-0 mt-1" />
-                  <span className="break-words">Office No 4&5, Second Floor, NTC, Bhilwara, Rajasthan - 311001</span>
+                  <span className="break-words">Plot No. 60, 61, 62, Navkar Trade Centre, Opposite Mirchi Mandi, Near Gokul Dham, Bhilwara, Rajasthan, 311001</span>
                 </p>
                 <p className="flex items-center space-x-2">
                   <FaPhone className="text-primary-400 flex-shrink-0" />

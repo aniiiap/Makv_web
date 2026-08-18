@@ -26,6 +26,10 @@ const contactSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  ipAddress: {
+    type: String,
+    trim: true
+  },
   createdAt: {
     type: Date,
     default: Date.now
