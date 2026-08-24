@@ -7,7 +7,7 @@ const path = require('path');
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // Middleware
 // CORS configuration - secure for production

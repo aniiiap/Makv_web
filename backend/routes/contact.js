@@ -11,6 +11,9 @@ const contactLimiter = rateLimit({
   message: { success: false, message: 'Too many contact requests from this IP, please try again after an hour' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req, res) => {
+    return req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.ip;
+  }
 });
 
 // Configure Resend client using API key
@@ -46,7 +49,7 @@ router.post(
       }
 
       const { name, email, phone, message, service } = req.body;
-      const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown IP';
+      const ipAddress = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : (req.ip || req.connection.remoteAddress || 'Unknown IP');
 
       const contact = new Contact({
         name,
