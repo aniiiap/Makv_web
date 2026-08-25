@@ -10,6 +10,7 @@ const Contact = () => {
     phone: '',
     service: '',
     message: '',
+    website: '', // Honeypot field
   });
   const [loading, setLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
@@ -35,6 +36,7 @@ const Contact = () => {
         phone: '',
         service: '',
         message: '',
+        website: '',
       });
     } catch (error) {
       setSubmitStatus({
@@ -167,6 +169,19 @@ const Contact = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Honeypot field - hidden from users, filled by bots */}
+              <div style={{ display: 'none' }} aria-hidden="true">
+                <label htmlFor="website">Website</label>
+                <input
+                  type="text"
+                  id="website"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleChange}
+                  tabIndex="-1"
+                  autoComplete="off"
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">

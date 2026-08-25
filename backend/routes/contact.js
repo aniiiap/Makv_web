@@ -11,9 +11,6 @@ const contactLimiter = rateLimit({
   message: { success: false, message: 'Too many contact requests from this IP, please try again after an hour' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req, res) => {
-    return req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.ip;
-  }
 });
 
 // Configure Resend client using API key
@@ -39,17 +36,36 @@ router.post(
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Please provide a valid email'),
     body('phone').trim().notEmpty().withMessage('Phone number is required'),
-    body('message').trim().notEmpty().withMessage('Message is required'),
+    body('message').trim().notEmpty().withMessage('Message is required')
+      .custom((value) => {
+        // Check if message is purely numeric (common spam pattern)
+        if (/^\d+$/.test(value)) {
+          throw new Error('Please provide a descriptive message, not just numbers');
+        }
+        // Check if message contains at least one letter (a-z or A-Z)
+        if (!/[a-zA-Z]/.test(value)) {
+          throw new Error('Please include at least some text in your message');
+        }
+        return true;
+      }),
   ],
   async (req, res) => {
     try {
+      // Honeypot check - if the hidden 'website' field is filled, it's a bot
+      if (req.body.website) {
+        // Silently "succeed" to trick the bot
+        return res.status(201).json({
+          success: true,
+          message: 'Thank you for contacting us! We will get back to you soon.',
+        });
+      }
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
       const { name, email, phone, message, service } = req.body;
-      const ipAddress = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : (req.ip || req.connection.remoteAddress || 'Unknown IP');
+      const ipAddress = req.ip || 'Unknown IP';
 
       const contact = new Contact({
         name,
