@@ -7,6 +7,7 @@ const { sendEmail } = require('../utils/taskManager.emailService');
 const TaskManagerUser = require('../models/TaskManagerUser');
 const { getIO } = require('../utils/taskManager.socketManager');
 const { cloudinary } = require('../config/cloudinary');
+const { userHasClientsAccess } = require('../utils/clientsAccess');
 
 // Helper function to create activity log
 const createActivityLog = async (taskId, userId, action, field, oldValue, newValue, description) => {
@@ -23,6 +24,36 @@ const createActivityLog = async (taskId, userId, action, field, oldValue, newVal
   } catch (error) {
     console.error('Error creating activity log:', error);
   }
+};
+
+// Helper to validate client ID and verify the user is allowed to link clients
+const validateAndAuthorizeClientLink = async (user, clientId, teamId, existingTeamDoc = null) => {
+  if (!clientId) return null;
+  if (!mongoose.Types.ObjectId.isValid(clientId)) {
+    return { status: 400, message: 'Invalid client ID' };
+  }
+  if (user.role === 'admin') return null;
+
+  if (teamId) {
+    const teamDoc = existingTeamDoc || await TaskManagerTeam.findOne({
+      _id: teamId,
+      'members.user': user.id,
+      isActive: true,
+    });
+    const member = teamDoc?.members?.find(
+      (m) => m.user && m.user.toString() === user.id.toString()
+    );
+    if (!teamDoc?.clientsEnabled || !member || member.clientsAccess !== true) {
+      return { status: 403, message: 'Not authorized to link clients in this team' };
+    }
+    return null;
+  }
+
+  const hasAccess = await userHasClientsAccess(user);
+  if (!hasAccess) {
+    return { status: 403, message: 'Not authorized to link clients' };
+  }
+  return null;
 };
 
 // @desc    Get all tasks
@@ -65,11 +96,11 @@ exports.getTasks = async (req, res, next) => {
 
       const teamIds = teams.map((t) => t._id);
 
-      // Include personal tasks (no team) OR team tasks OR client tasks
+      // Include personal tasks (no team) OR team tasks OR non-team client tasks
       query.$or = [
         { team: { $in: teamIds } },
         { team: null, createdBy: req.user.id },
-        { client: { $ne: null } }
+        { team: null, client: { $ne: null } }
       ];
     }
 
@@ -239,7 +270,7 @@ exports.getTask = async (req, res, next) => {
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
       .populate('comments.user', 'name email avatar')
-      .populate('client', 'name companyName');
+      .populate('client', 'name companyName email address city state pincode gstin clientId');
 
     if (!task) {
       return res.status(404).json({
@@ -290,8 +321,34 @@ exports.getTask = async (req, res, next) => {
 // @access  Private
 exports.createTask = async (req, res, next) => {
   try {
-    const { title, description, team, assignedTo, status, priority, dueDate, tags, client } =
+    const { title, description, team, assignedTo, status, priority, dueDate, tags, client, isFixed, fixedAmount } =
       req.body;
+    const isGlobalAdmin = req.user?.role === 'admin';
+
+    if (!isGlobalAdmin && (Boolean(isFixed) || (fixedAmount !== undefined && fixedAmount !== null && fixedAmount !== ''))) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can create fixed tasks or set fixed amounts',
+      });
+    }
+
+    let normalizedFixedAmount = null;
+    if (fixedAmount !== undefined && fixedAmount !== null && fixedAmount !== '') {
+      if (!client) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please select a client before setting a fixed amount',
+        });
+      }
+      const parsedAmount = Number(fixedAmount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Fixed amount must be a valid non-negative number',
+        });
+      }
+      normalizedFixedAmount = parsedAmount;
+    }
 
     let teamDoc = null;
 
@@ -333,6 +390,13 @@ exports.createTask = async (req, res, next) => {
       }
     }
     // If client is provided (client-linked task), any user can be assigned
+    const clientError = await validateAndAuthorizeClientLink(req.user, client, team, teamDoc);
+    if (clientError) {
+      return res.status(clientError.status).json({
+        success: false,
+        message: clientError.message,
+      });
+    }
 
     const task = await TaskManagerTask.create({
       title,
@@ -346,6 +410,8 @@ exports.createTask = async (req, res, next) => {
       dueDate: dueDate || null,
       tags: tags || [],
       isBillable: req.body.isBillable || false,
+      isFixed: isGlobalAdmin ? Boolean(isFixed) : false,
+      fixedAmount: isGlobalAdmin ? normalizedFixedAmount : null,
     });
 
     const populatedTask = await TaskManagerTask.findById(task._id)
@@ -417,6 +483,32 @@ exports.createTask = async (req, res, next) => {
 // @desc    Update task
 // @route   PUT /api/tasks/:id
 // @access  Private
+// Helper to check if core task details are being modified on a fixed task
+const hasFixedCoreFieldsChanged = (body, task, isClientChanging) => {
+  const isTitleChanging = body.title !== undefined && body.title !== task.title;
+  const isDescChanging = body.description !== undefined && (body.description || '') !== (task.description || '');
+  const isTeamChanging =
+    body.team !== undefined &&
+    (body.team ? body.team.toString() : '') !== (task.team ? task.team.toString() : '');
+  const isPriorityChanging = body.priority !== undefined && body.priority !== task.priority;
+  const incomingDue = body.dueDate ? new Date(body.dueDate).getTime() : 0;
+  const existingDue = task.dueDate ? new Date(task.dueDate).getTime() : 0;
+  const isDueChanging = body.dueDate !== undefined && incomingDue !== existingDue;
+  const incomingTags = Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean).join(',') : '';
+  const existingTags = Array.isArray(task.tags) ? task.tags.map((t) => String(t).trim()).filter(Boolean).join(',') : '';
+  const isTagsChanging = body.tags !== undefined && incomingTags !== existingTags;
+
+  return (
+    isTitleChanging ||
+    isDescChanging ||
+    isTeamChanging ||
+    isClientChanging ||
+    isPriorityChanging ||
+    isDueChanging ||
+    isTagsChanging
+  );
+};
+
 exports.updateTask = async (req, res, next) => {
   try {
     let task = await TaskManagerTask.findById(req.params.id);
@@ -426,6 +518,83 @@ exports.updateTask = async (req, res, next) => {
         success: false,
         message: 'Task not found',
       });
+    }
+
+    if (req.body.client === '') {
+      req.body.client = null;
+    }
+
+    const isGlobalAdmin = req.user?.role === 'admin';
+
+    if (req.body.fixedAmount !== undefined) {
+      if (req.body.fixedAmount === '' || req.body.fixedAmount === null) {
+        req.body.fixedAmount = null;
+      } else {
+        const parsedFixedAmount = Number(req.body.fixedAmount);
+        if (!Number.isFinite(parsedFixedAmount) || parsedFixedAmount < 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Fixed amount must be a valid non-negative number',
+          });
+        }
+        req.body.fixedAmount = parsedFixedAmount;
+      }
+    }
+
+    const currentFixedAmount = task.fixedAmount !== undefined && task.fixedAmount !== null ? Number(task.fixedAmount) : null;
+    const isFixedFlagChanging =
+      req.body.isFixed !== undefined && Boolean(req.body.isFixed) !== Boolean(task.isFixed);
+    const isFixedAmountChanging =
+      req.body.fixedAmount !== undefined && req.body.fixedAmount !== currentFixedAmount;
+
+    if (!isGlobalAdmin && (isFixedFlagChanging || isFixedAmountChanging)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can set or edit fixed task settings and amounts',
+      });
+    }
+
+    const isClientChanging =
+      req.body.client !== undefined &&
+      (req.body.client ? req.body.client.toString() : '') !== (task.client ? task.client.toString() : '');
+
+    if (!isGlobalAdmin && task.isFixed && !task.team) {
+      if (hasFixedCoreFieldsChanged(req.body, task, isClientChanging)) {
+        return res.status(403).json({
+          success: false,
+          message: 'This is a fixed task. Only admins can modify its details.',
+        });
+      }
+    }
+
+    if (isGlobalAdmin) {
+      if (req.body.isFixed !== undefined) {
+        req.body.isFixed = Boolean(req.body.isFixed);
+      }
+      const effectiveClient = req.body.client !== undefined ? req.body.client : task.client;
+      if (!effectiveClient) {
+        if (req.body.fixedAmount !== undefined && req.body.fixedAmount !== null) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please select a client before setting a fixed amount',
+          });
+        }
+        req.body.fixedAmount = null;
+      }
+    } else {
+      delete req.body.isFixed;
+      delete req.body.fixedAmount;
+    }
+
+    if (isClientChanging && req.body.client) {
+      const targetTeamId = req.body.team !== undefined ? req.body.team : task.team;
+      const clientError = await validateAndAuthorizeClientLink(req.user, req.body.client, targetTeamId);
+      if (clientError) {
+        return res.status(clientError.status).json({
+          success: false,
+          message: clientError.message,
+        });
+      }
     }
 
     // Verify user can update task
@@ -463,11 +632,20 @@ exports.updateTask = async (req, res, next) => {
       const member = team.members.find(m => m.user && m.user.toString() === req.user.id.toString());
       const userRole = member ? member.role : 'member';
 
+      if (task.isFixed && !isGlobalAdmin && !['owner', 'admin'].includes(userRole)) {
+        if (hasFixedCoreFieldsChanged(req.body, task, isClientChanging)) {
+          return res.status(403).json({
+            success: false,
+            message: 'This is a fixed task. Only admins, team owners, or team admins can modify its details.',
+          });
+        }
+      }
+
       // If user is just a member (not owner/admin), they CANNOT change:
       // - dueDate
       // - priority
       // - assignedTo
-      if (!['owner', 'admin'].includes(userRole)) {
+      if (!['owner', 'admin'].includes(userRole) && !(task.isFixed && isGlobalAdmin)) {
         if (req.body.dueDate && new Date(req.body.dueDate).getTime() !== new Date(task.dueDate || 0).getTime()) {
           return res.status(403).json({
             success: false,
@@ -494,8 +672,8 @@ exports.updateTask = async (req, res, next) => {
         });
       }
 
-      // Personal tasks can only be assigned to self
-      if (req.body.assignedTo && req.body.assignedTo !== req.user.id.toString()) {
+      // Personal tasks can only be assigned to self unless linking a client
+      if (!req.body.client && req.body.assignedTo && req.body.assignedTo !== req.user.id.toString()) {
         return res.status(400).json({
           success: false,
           message: 'Personal tasks can only be assigned to yourself',
@@ -713,7 +891,8 @@ exports.updateTask = async (req, res, next) => {
       .populate('team', 'name')
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
-      .populate('comments.user', 'name email avatar');
+      .populate('comments.user', 'name email avatar')
+      .populate('client', 'name companyName');
 
     res.json({
       success: true,
@@ -738,6 +917,13 @@ exports.deleteTask = async (req, res, next) => {
       });
     }
 
+    if (task.isFixed && !task.team && req.user?.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Fixed tasks without a team can only be deleted by admins',
+      });
+    }
+
     // Verify user can delete task
     if (task.team) {
       const teamId = task.team._id || task.team;
@@ -758,14 +944,30 @@ exports.deleteTask = async (req, res, next) => {
         (m) => m.user.toString() === req.user.id.toString()
       );
 
-      // Only creator, owner, or admin can delete
+      // For fixed tasks in a team: only global admin, team owner, or team admin can delete
+      if (task.isFixed && req.user?.role !== 'admin' && !['owner', 'admin'].includes(member?.role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Fixed tasks can only be deleted by admins, team owners, or team admins',
+        });
+      }
+
+      // Only creator, owner, or admin can delete (global admin can also delete fixed tasks)
       if (
+        !(task.isFixed && req.user?.role === 'admin') &&
         task.createdBy.toString() !== req.user.id.toString() &&
         !['owner', 'admin'].includes(member.role)
       ) {
         return res.status(403).json({
           success: false,
           message: 'Not authorized to delete this task',
+        });
+      }
+    } else if (task.isFixed) {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Fixed tasks without a team can only be deleted by admins',
         });
       }
     } else {

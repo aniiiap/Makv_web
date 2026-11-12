@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
+import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import ConfirmationModal from '../components/taskManager.ConfirmationModal';
@@ -14,9 +15,12 @@ const HUFBillGenerator = () => {
     const taskId = queryParams.get('taskId') || null;
 
     const { isDark } = useTheme();
+    const { user } = useTaskManagerAuth();
+    const isAdmin = user?.role === 'admin';
     const [loading, setLoading] = useState(false);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
     const [officeClients, setOfficeClients] = useState([]);
+    const [fixedTaskAmount, setFixedTaskAmount] = useState(null);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
     const getLocalDateString = () => {
@@ -61,18 +65,32 @@ const HUFBillGenerator = () => {
                 const task = taskRes?.data || taskRes;
 
                 const taskSubDesc = task.title + (task.description ? ` - ${task.description}` : '');
-                
+                const hasFixedAmt = task?.fixedAmount !== null && task?.fixedAmount !== undefined;
+                if (hasFixedAmt) {
+                    setFixedTaskAmount(Number(task.fixedAmount));
+                }
+
                 setFormData(prev => ({
                     ...prev,
                     items: prev.items.map((item, index) => 
-                        index === 0 ? { ...item, subDescription: taskSubDesc } : item
+                        index === 0
+                            ? { ...item, subDescription: taskSubDesc, ...(hasFixedAmt ? { amount: Number(task.fixedAmount) } : {}) }
+                            : item
                     )
                 }));
 
                 if (task?.client) {
                     const clientId = task.client._id || task.client;
-                    const clientRes = await api.get(`/clients/${clientId}`);
-                    const client = clientRes?.client || clientRes?.data?.client || clientRes;
+                    let client = typeof task.client === 'object' ? task.client : null;
+                    try {
+                        const clientRes = await api.get(`/clients/${clientId}`);
+                        const fetchedClient = clientRes?.client || clientRes?.data?.client || clientRes;
+                        if (fetchedClient && fetchedClient.name) {
+                            client = fetchedClient;
+                        }
+                    } catch (clientErr) {
+                        // Fall back to populated task.client if user lacks /clients/:id access
+                    }
                     if (client && client.name) {
                         setFormData(prev => ({
                             ...prev,
@@ -284,6 +302,7 @@ const HUFBillGenerator = () => {
                         <div className="md:col-span-2">
                             <label className={labelClass}>Select Existing Client (Optional)</label>
                             <select
+                                value={formData.buyerDetails.clientId || ""}
                                 onChange={(e) => {
                                     const selectedClientId = e.target.value;
                                     const client = officeClients.find(c => c._id === selectedClientId);
@@ -294,7 +313,7 @@ const HUFBillGenerator = () => {
                                                 ...prev.buyerDetails,
                                                 clientId: client._id,
                                                 name: client.name,
-                                                address: client.address || '',
+                                                address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
                                             },
                                             sentToEmail: client.email || prev.sentToEmail
                                         }));
@@ -353,13 +372,20 @@ const HUFBillGenerator = () => {
                                             className={inputClass} placeholder="e.g. For Filing of 4 Applications Under RIPS" />
                                     </div>
                                     <div className="col-span-2">
-                                        <label className={labelClass}>Amount (₹)</label>
+                                        <label className={labelClass}>
+                                            Amount (₹) {index === 0 && fixedTaskAmount !== null && (
+                                                <span className={`text-[10px] font-normal ${isAdmin ? 'text-amber-500' : 'text-gray-400'}`}>
+                                                    ({isAdmin ? 'Fixed - Editable' : 'Admin Fixed'})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={item.amount}
                                             onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                                            className={inputClass} min="0" step="0.01" />
+                                            disabled={index === 0 && fixedTaskAmount !== null && !isAdmin}
+                                            className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`} min="0" step="0.01" />
                                     </div>
                                     <div className="col-span-1 flex justify-center">
-                                        {formData.items.length > 1 && (
+                                        {formData.items.length > 1 && !(index === 0 && fixedTaskAmount !== null && !isAdmin) && (
                                             <button type="button" onClick={() => removeItem(index)}
                                                 className="p-2 text-red-500 hover:bg-red-100 rounded-lg">
                                                 <FiTrash2 className="w-4 h-4" />

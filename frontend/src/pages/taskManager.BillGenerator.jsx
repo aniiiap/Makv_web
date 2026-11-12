@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/taskManager.api';
 import { useTheme } from '../context/taskManager.ThemeContext';
+import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 import {
     FiPlus, FiTrash2, FiSave, FiArrowLeft, FiChevronDown, FiChevronUp,
 } from 'react-icons/fi';
@@ -15,8 +16,11 @@ const BillGenerator = () => {
     const taskId = queryParams.get('taskId') || null;
 
     const { isDark } = useTheme();
+    const { user } = useTaskManagerAuth();
+    const isAdmin = user?.role === 'admin';
     const [loading, setLoading] = useState(false);
     const [officeClients, setOfficeClients] = useState([]);
+    const [fixedTaskAmount, setFixedTaskAmount] = useState(null);
     const [showExtraDetails, setShowExtraDetails] = useState(false);
 
     const getLocalDateString = () => {
@@ -81,18 +85,32 @@ const BillGenerator = () => {
                 const task = taskRes?.data || taskRes;
                 
                 const taskSubDesc = task.title + (task.description ? ` - ${task.description}` : '');
-                
+                const hasFixedAmt = task?.fixedAmount !== null && task?.fixedAmount !== undefined;
+                if (hasFixedAmt) {
+                    setFixedTaskAmount(Number(task.fixedAmount));
+                }
+
                 setFormData(prev => ({
                     ...prev,
                     items: prev.items.map((item, index) => 
-                        index === 0 ? { ...item, subDescription: taskSubDesc } : item
+                        index === 0
+                            ? { ...item, subDescription: taskSubDesc, ...(hasFixedAmt ? { amount: Number(task.fixedAmount) } : {}) }
+                            : item
                     )
                 }));
 
                 if (task?.client) {
                     const clientId = task.client._id || task.client;
-                    const clientRes = await api.get(`/clients/${clientId}`);
-                    const client = clientRes?.client || clientRes?.data?.client || clientRes;
+                    let client = typeof task.client === 'object' ? task.client : null;
+                    try {
+                        const clientRes = await api.get(`/clients/${clientId}`);
+                        const fetchedClient = clientRes?.client || clientRes?.data?.client || clientRes;
+                        if (fetchedClient && fetchedClient.name) {
+                            client = fetchedClient;
+                        }
+                    } catch (clientErr) {
+                        // Fall back to populated task.client if user lacks /clients/:id access
+                    }
                     if (client && client.name) {
                         const gstinStr = client.gstin || '';
                         const derivedStateCode = (gstinStr && gstinStr.length >= 2) ? gstinStr.substring(0, 2) : (client.stateCode || '27');
@@ -135,7 +153,7 @@ const BillGenerator = () => {
                     ...prev.buyerDetails,
                     clientId: client._id,
                     name: client.name,
-                    address: client.address || '',
+                    address: [client.address, client.city, client.state, client.pincode].filter(Boolean).join(', '),
                     gstin: gstinStr,
                     stateCode: derivedStateCode,
                 },
@@ -506,12 +524,18 @@ const BillGenerator = () => {
                                                     type="text"
                                                     value={item.amount}
                                                     onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                                                    className={inputClass}
+                                                    disabled={index === 0 && fixedTaskAmount !== null && !isAdmin}
+                                                    className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
                                                     required
                                                 />
+                                                {index === 0 && fixedTaskAmount !== null && (
+                                                    <span className={`block text-[10px] mt-0.5 ${isAdmin ? 'text-amber-500' : 'text-gray-400'}`}>
+                                                        {isAdmin ? 'Admin Fixed (editable)' : 'Fixed by Admin'}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="p-2 text-center">
-                                                {formData.items.length > 1 && (
+                                                {formData.items.length > 1 && !(index === 0 && fixedTaskAmount !== null && !isAdmin) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => removeItem(index)}

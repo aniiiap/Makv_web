@@ -189,7 +189,7 @@ const Dashboard = () => {
       link: '/taskflow/tasks?createdBy=me',
     },
     ...(canAccessBills ? [{
-      name: 'Bills & Invoices',
+      name: 'Challan & Invoice',
       value: 'View',
       icon: FiFileText,
       color: 'from-teal-500 to-teal-600',

@@ -378,6 +378,22 @@ const uploadToCloudinary = (buffer, invoiceNo) => {
   });
 };
 
+// Helper to enforce fixed task amount when a non-admin generates a bill/challan
+const enforceFixedTaskAmountIfNeeded = async (billData, user) => {
+  if (!billData?.taskId || user?.role === 'admin' || !mongoose.Types.ObjectId.isValid(billData.taskId)) {
+    return false;
+  }
+  const linkedTask = await TaskManagerTask.findById(billData.taskId).select('fixedAmount');
+  if (!linkedTask || linkedTask.fixedAmount === null || linkedTask.fixedAmount === undefined) {
+    return false;
+  }
+  if (Array.isArray(billData.items) && billData.items.length > 0) {
+    billData.items[0].amount = Number(linkedTask.fixedAmount);
+    return true;
+  }
+  return false;
+};
+
 exports.createBill = async (req, res) => {
   try {
     console.log('Starting bill generation...');
@@ -394,6 +410,29 @@ exports.createBill = async (req, res) => {
     }
     billData.generatedBy = req.user._id;
     console.log('User authenticated:', req.user._id);
+
+    const fixedAmountApplied = await enforceFixedTaskAmountIfNeeded(billData, req.user);
+    if (fixedAmountApplied) {
+      const subtotal = billData.items.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0);
+      const taxAmount = billData.items.reduce((acc, item) => {
+        const amt = parseFloat(item.amount) || 0;
+        const rate = parseFloat(item.taxRate) || 0;
+        return acc + (amt * rate / 100);
+      }, 0);
+      const isMaharashtra = (billData.buyerDetails?.stateCode || '27') === '27';
+      const total = subtotal + taxAmount;
+      billData.taxDetails = {
+        ...(billData.taxDetails || {}),
+        cgst: isMaharashtra ? taxAmount / 2 : 0,
+        sgst: isMaharashtra ? taxAmount / 2 : 0,
+        igst: isMaharashtra ? 0 : taxAmount,
+        isMaharashtra,
+        totalAmount: total,
+        taxableAmount: subtotal,
+      };
+      billData.amountInWords = `Rupees ${Math.floor(total)} Only`;
+      billData.taxAmountInWords = `INR ${Math.floor(taxAmount)} Only`;
+    }
 
     // Auto-generate invoiceNo: MAKV/2026-02/00X
     const currentDate = new Date(billData.date || Date.now());
@@ -590,8 +629,8 @@ exports.getClientsForBilling = async (req, res) => {
   try {
     // Fetch active clients from the office dashboard
     // We only need basic details for the dropdown and auto-filling
-    const clients = await Client.find({ status: 'active' })
-      .select('name address email gstin stateCode clientId')
+    const clients = await Client.find({ status: { $ne: 'inactive' } })
+      .select('name companyName address city state pincode email gstin stateCode clientId')
       .sort({ name: 1 })
       .lean();
 
@@ -855,6 +894,8 @@ exports.createHUFBill = async (req, res) => {
       return res.status(401).json({ message: 'User authentication failed' });
     }
     billData.generatedBy = req.user._id;
+
+    await enforceFixedTaskAmountIfNeeded(billData, req.user);
 
     // Auto-generate invoiceNo: HUF/YYYY-MM/00X
     const currentDate = new Date(billData.date || Date.now());

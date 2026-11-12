@@ -126,7 +126,7 @@ const Layout = ({ children }) => {
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'My Daily Work', href: '/taskflow/my-daily-work', icon: FiClock },
     { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },
-    ...(canAccessBills ? [{ name: 'Bills & Invoices', href: '/taskflow/bills', icon: FiFileText }] : []),
+    ...(canAccessBills ? [{ name: 'Challan & Invoice', href: '/taskflow/bills', icon: FiFileText }] : []),
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
   ];

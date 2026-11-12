@@ -178,7 +178,7 @@ const BillList = () => {
         <div className={`space-y-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold">Uploaded Bills & Invoices</h1>
+                    <h1 className="text-3xl font-bold">Uploaded Challan & Invoice</h1>
                     <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         Manage and view generated invoices
                     </p>
@@ -223,7 +223,7 @@ const BillList = () => {
                             : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
                             }`}
                     >
-                        Pending Bills
+                        Pending Challan & Invoice
                     </button>
                     <button
                         onClick={() => setActiveTab('done')}
@@ -232,7 +232,7 @@ const BillList = () => {
                             : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
                             }`}
                     >
-                        Done Bills
+                        Done Challan & Invoice
                     </button>
                 </div>
 

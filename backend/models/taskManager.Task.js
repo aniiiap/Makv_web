@@ -44,6 +44,15 @@ const taskSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isFixed: {
+      type: Boolean,
+      default: false,
+    },
+    fixedAmount: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     dueDate: {
       type: Date,
     },

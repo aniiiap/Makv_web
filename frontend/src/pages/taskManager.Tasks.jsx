@@ -9,7 +9,7 @@ import {
   FiPlus, FiFilter, FiList, FiGrid, FiFolder, FiUser, FiUsers,
   FiCalendar, FiTag, FiEdit2, FiX, FiCheckCircle, FiClock,
   FiActivity, FiCheckSquare, FiPlay, FiPause, FiSquare, FiTrash2, FiDollarSign,
-  FiDownload, FiSearch, FiPaperclip, FiImage, FiUploadCloud, FiEye, FiFile, FiFileText
+  FiDownload, FiSearch, FiPaperclip, FiImage, FiUploadCloud, FiEye, FiFile, FiFileText, FiLock
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
@@ -26,7 +26,12 @@ const Tasks = ({ openCreate = false }) => {
   const [activities, setActivities] = useState([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [allUsers, setAllUsers] = useState([]);
+  const [clientUsers, setClientUsers] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [canAccessClients, setCanAccessClients] = useState(false);
   const [editingClientTask, setEditingClientTask] = useState(null);
+  const [editingFixedTask, setEditingFixedTask] = useState(false);
+  const [editingFixedTeamId, setEditingFixedTeamId] = useState('');
 
   // Custom Timer Context
   const {
@@ -53,6 +58,7 @@ const Tasks = ({ openCreate = false }) => {
     const teamFilter = localStorage.getItem('teamFilter') || '';
     return {
       team: teamFilter,
+      client: params.get('client') || '',
       status: params.get('status') || '',
       assignedTo: params.get('assignedTo') || '',
       priority: params.get('priority') || '',
@@ -67,9 +73,12 @@ const Tasks = ({ openCreate = false }) => {
   const navigate = useNavigate();
 
   const [newTask, setNewTask] = useState({
+    isFixed: false,
+    fixedAmount: '',
     title: '',
     description: '',
     team: '',
+    client: '',
     assignedTo: '',
     status: 'todo',
     priority: 'medium',
@@ -78,20 +87,46 @@ const Tasks = ({ openCreate = false }) => {
     isBillable: false,
   });
 
-  // 1. Fetch teams once on mount or when user changes
+  // 1. Fetch teams and client access once on mount or when user changes
   useEffect(() => {
     fetchTeams();
-    if (user?.role === 'admin') {
-      const fetchAllUsers = async () => {
-        try {
-          const res = await api.get('/clients/users');
-          setAllUsers(Array.isArray(res) ? res : []);
-        } catch (err) {
-          console.error('Error fetching all users:', err);
-        }
-      };
-      fetchAllUsers();
+    if (!user) {
+      setCanAccessClients(false);
+      setClients([]);
+      setClientUsers([]);
+      return;
     }
+
+    const fetchUserResources = async () => {
+      try {
+        const accessRes = await api.get('/clients/access').catch(() => ({ canAccess: false }));
+        const hasClientAccess = user?.role === 'admin' || accessRes?.canAccess === true;
+        setCanAccessClients(hasClientAccess);
+
+        if (hasClientAccess) {
+          const [clientsRes, usersRes] = await Promise.all([
+            api.get('/clients').catch(() => []),
+            api.get('/clients/users').catch(() => []),
+          ]);
+          const sortedClients = Array.isArray(clientsRes)
+            ? [...clientsRes].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            : [];
+          setClients(sortedClients);
+          const activeUsers = Array.isArray(usersRes) ? usersRes : [];
+          setClientUsers(activeUsers);
+          if (user?.role === 'admin') {
+            setAllUsers(activeUsers);
+          }
+        } else {
+          setClients([]);
+          setClientUsers([]);
+        }
+      } catch (err) {
+        console.error('Error fetching client resources:', err);
+      }
+    };
+
+    fetchUserResources();
   }, [user]);
 
   const allTeamMembers = useMemo(() => {
@@ -108,6 +143,7 @@ const Tasks = ({ openCreate = false }) => {
 
   // 2. Sync filters from URL searchParams
   useEffect(() => {
+    const client = searchParams.get('client');
     const status = searchParams.get('status');
     const assignedTo = searchParams.get('assignedTo');
     const priority = searchParams.get('priority');
@@ -119,6 +155,7 @@ const Tasks = ({ openCreate = false }) => {
     setFilters(prev => ({
       ...prev,
       team: teamFilter,
+      client: client || '',
       status: status || '',
       assignedTo: assignedTo || '',
       priority: priority || '',
@@ -144,7 +181,7 @@ const Tasks = ({ openCreate = false }) => {
       const teamId = event.detail?.teamId || localStorage.getItem('teamFilter') || '';
       setFilters(prev => {
         if (prev.team !== teamId) {
-          return { ...prev, team: teamId };
+          return { ...prev, team: teamId, client: hasTeamClientsAccess(teamId) ? prev.client : '' };
         }
         return prev;
       });
@@ -171,7 +208,7 @@ const Tasks = ({ openCreate = false }) => {
       const teamFilter = localStorage.getItem('teamFilter') || '';
       setFilters(prev => {
         if (prev.team !== teamFilter) {
-          return { ...prev, team: teamFilter };
+          return { ...prev, team: teamFilter, client: hasTeamClientsAccess(teamFilter) ? prev.client : '' };
         }
         return prev;
       });
@@ -184,7 +221,7 @@ const Tasks = ({ openCreate = false }) => {
       window.removeEventListener('storage', handleFilterChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [filters, user, teams]);
+  }, [filters, user, teams, canAccessClients]);
 
   const fetchTeams = async () => {
     try {
@@ -200,6 +237,7 @@ const Tasks = ({ openCreate = false }) => {
       setLoading(true);
       const params = {};
       if (filters.team) params.team = filters.team;
+      if (filters.client) params.client = filters.client;
       if (filters.createdBy) params.createdBy = filters.createdBy;
 
       // Use filters.status if set, otherwise exclude 'done' tasks by default
@@ -247,6 +285,38 @@ const Tasks = ({ openCreate = false }) => {
     );
   }, [tasks, searchText]);
 
+  const resetTaskForm = () => {
+    setNewTask({
+      title: '',
+      description: '',
+      team: '',
+      client: '',
+      assignedTo: '',
+      status: 'todo',
+      priority: 'medium',
+      dueDate: '',
+      tags: '',
+      isBillable: false,
+      isFixed: false,
+      fixedAmount: '',
+    });
+  };
+
+  const closeTaskModal = () => {
+    setShowCreateModal(false);
+    setEditingTask(null);
+    setEditingClientTask(null);
+    setEditingFixedTask(false);
+    setEditingFixedTeamId('');
+    setCurrentTaskDetails(null);
+    setActiveTab('details');
+    setActivities([]);
+    setNewSubtaskTitle('');
+    setManualTimeHours('');
+    setManualTimeMinutes('');
+    resetTaskForm();
+  };
+
   const handleCreateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
@@ -256,25 +326,33 @@ const Tasks = ({ openCreate = false }) => {
         handleUpdateTask(e);
         return;
       }
+      const isGlobalAdmin = user?.role === 'admin';
+      if (isGlobalAdmin && newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined) {
+        const parsedFixed = Number(newTask.fixedAmount);
+        if (!Number.isFinite(parsedFixed) || parsedFixed < 0) {
+          alert('Please enter a valid non-negative fixed amount');
+          setIsSavingTask(false);
+          return;
+        }
+      }
       const taskData = {
         ...newTask,
         team: newTask.team || null, // Allow null for personal tasks
-        assignedTo: newTask.assignedTo || (newTask.team ? null : user?.id), // Default to self for personal tasks
+        client: newTask.client || null,
+        assignedTo: newTask.assignedTo || ((newTask.team || newTask.client) ? null : user?.id), // Default to self for personal tasks
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
       };
+      if (isGlobalAdmin) {
+        taskData.isFixed = Boolean(newTask.isFixed);
+        taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
+          ? Number(newTask.fixedAmount)
+          : null;
+      } else {
+        delete taskData.isFixed;
+        delete taskData.fixedAmount;
+      }
       await api.post('/tasks', taskData);
-      setShowCreateModal(false);
-      setEditingTask(null);
-      setNewTask({
-        title: '',
-        description: '',
-        team: '',
-        assignedTo: '',
-        status: 'todo',
-        priority: 'medium',
-        dueDate: '',
-        tags: '',
-      });
+      closeTaskModal();
       fetchTasks();
     } catch (error) {
       alert(error.message || 'Failed to create task');
@@ -308,17 +386,22 @@ const Tasks = ({ openCreate = false }) => {
     // Track if this is a client task
     const clientInfo = task.client || null;
     setEditingClientTask(clientInfo);
+    setEditingFixedTask(Boolean(task.isFixed));
+    setEditingFixedTeamId((task.team?._id || task.team || '').toString());
 
     setNewTask({
       title: task.title,
       description: task.description || '',
       team: task.team?._id || task.team || '',
+      client: task.client?._id || task.client || '',
       assignedTo: task.assignedTo?._id || task.assignedTo || '',
       status: task.status,
       priority: task.priority,
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : '',
       tags: task.tags ? task.tags.join(', ') : '',
       isBillable: task.isBillable || false,
+      isFixed: Boolean(task.isFixed),
+      fixedAmount: task.fixedAmount !== null && task.fixedAmount !== undefined ? String(task.fixedAmount) : '',
     });
     setEditingTask(task._id);
     setActiveTab('details');
@@ -561,6 +644,63 @@ const Tasks = ({ openCreate = false }) => {
     }
   };
 
+  const canManageEditingFixedTask = () => {
+    if (!editingTask || !editingFixedTask) return true;
+    if (user?.role === 'admin') return true;
+    if (!editingFixedTeamId) return false;
+    const userId = (user?._id || user?.id)?.toString();
+    const originalTeam = teams.find(t => (t._id || t.id)?.toString() === editingFixedTeamId);
+    const originalMember = originalTeam?.members?.find(m => (m.user?._id || m.user)?.toString() === userId);
+    return ['admin', 'owner'].includes(originalMember?.role);
+  };
+
+  const buildUpdatePayload = (overrideIsBillable) => {
+    const currentTeamObj = teams.find(t => t._id === newTask.team);
+    const currentMember = currentTeamObj?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
+    const userRole = currentMember?.role || 'member';
+    const isGlobalAdmin = user?.role === 'admin';
+    const isAdminOrOwner = ['admin', 'owner'].includes(userRole) || isGlobalAdmin;
+    const isPersonal = !newTask.team;
+    const canEditFixedDetails = isGlobalAdmin || canManageEditingFixedTask();
+    const canEditRestricted = isGlobalAdmin || (canEditFixedDetails && (!editingTask || isPersonal || isAdminOrOwner));
+
+    const taskData = {
+      ...newTask,
+      team: newTask.team || null,
+      client: newTask.client || null,
+      assignedTo: newTask.assignedTo || null,
+      tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
+      isBillable: overrideIsBillable !== undefined ? overrideIsBillable : newTask.isBillable
+    };
+
+    if (isGlobalAdmin) {
+      taskData.isFixed = Boolean(newTask.isFixed);
+      taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
+        ? Number(newTask.fixedAmount)
+        : null;
+    } else {
+      delete taskData.isFixed;
+      delete taskData.fixedAmount;
+      if (editingTask && editingFixedTask && !canEditFixedDetails) {
+        delete taskData.title;
+        delete taskData.description;
+        delete taskData.team;
+        delete taskData.client;
+        delete taskData.priority;
+        delete taskData.dueDate;
+        delete taskData.tags;
+      }
+    }
+
+    if (!canEditRestricted && editingTask) {
+      delete taskData.priority;
+      delete taskData.dueDate;
+      delete taskData.team;
+    }
+
+    return taskData;
+  };
+
   // Handle auto-saving a task before redirecting to bill generation
   const autoSaveTaskAndRedirectToBill = async (e, billType = 'normal') => {
     e.preventDefault();
@@ -577,26 +717,26 @@ const Tasks = ({ openCreate = false }) => {
       const taskData = {
         ...newTask,
         team: newTask.team || null,
+        client: newTask.client || null,
         assignedTo: newTask.assignedTo || null,
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
         isBillable: false // Ensure it's false initially, the backend marks it true upon bill generation
       };
 
+      if (user?.role === 'admin') {
+        taskData.isFixed = Boolean(newTask.isFixed);
+        taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
+          ? Number(newTask.fixedAmount)
+          : null;
+      } else {
+        delete taskData.isFixed;
+        delete taskData.fixedAmount;
+      }
+
       const response = await api.post('/tasks', taskData);
 
       // Close modal and refresh tasks quietly
-      setShowCreateModal(false);
-      setNewTask({
-        title: '',
-        description: '',
-        team: '',
-        assignedTo: '',
-        status: 'todo',
-        priority: 'medium',
-        dueDate: '',
-        tags: '',
-        isBillable: false,
-      });
+      closeTaskModal();
       fetchTasks();
 
       const newTaskId = response.data._id;
@@ -608,49 +748,37 @@ const Tasks = ({ openCreate = false }) => {
     }
   };
 
+  // Save edits on an existing task (e.g. newly selected client) before redirecting to bill generation
+  const updateTaskAndRedirectToBill = async (taskId, billType = 'normal') => {
+    if (isSavingTask) return;
+    if (!newTask.title.trim()) {
+      toast.error("Please enter at least a Task Title before generating a bill.");
+      return;
+    }
+
+    try {
+      setIsSavingTask(true);
+      const taskData = buildUpdatePayload(false);
+      await api.put(`/tasks/${taskId}`, taskData);
+      closeTaskModal();
+      fetchTasks();
+      navigate(`/taskflow/bills/${billType === 'huf' ? 'create-huf' : 'create'}?taskId=${taskId}`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || 'Failed to save task before billing');
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
+
   const handleUpdateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
     try {
       setIsSavingTask(true);
-
-      // Permission Check
-      const currentTeam = teams.find(t => t._id === newTask.team);
-      const currentUserMember = currentTeam?.members?.find(m => m.user?._id === user?.id);
-      const userRole = currentUserMember?.role || 'member';
-      const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRole);
-      const isPersonalTask = !newTask.team;
-      const canEditSensitive = !editingTask || isPersonalTask || isTeamAdminOrOwner;
-
-      const taskData = {
-        ...newTask,
-        team: newTask.team || null,
-        assignedTo: newTask.assignedTo || null,
-        tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
-        isBillable: newTask.isBillable
-      };
-
-      // Filter out restricted fields if user doesn't have permission
-      if (!canEditSensitive && editingTask) {
-        delete taskData.priority;
-        delete taskData.dueDate;
-        delete taskData.team;
-      }
+      const taskData = buildUpdatePayload();
 
       await api.put(`/tasks/${editingTask}`, taskData);
-      setShowCreateModal(false);
-      setEditingTask(null);
-      setNewTask({
-        title: '',
-        description: '',
-        team: '',
-        assignedTo: '',
-        status: 'todo',
-        priority: 'medium',
-        dueDate: '',
-        tags: '',
-        isBillable: false,
-      });
+      closeTaskModal();
       fetchTasks();
     } catch (error) {
       alert(error.message || 'Failed to update task');
@@ -836,9 +964,24 @@ const Tasks = ({ openCreate = false }) => {
   const currentTeam = teams.find(t => t._id === newTask.team);
   const currentUserMember = currentTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
   const userRoleInTeam = currentUserMember?.role || 'member';
-  const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRoleInTeam) || user?.role === 'admin';
+  const isGlobalAdmin = user?.role === 'admin';
+  const isTaskFixedLocked = Boolean(editingTask && editingFixedTask && !canManageEditingFixedTask());
+  const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRoleInTeam) || isGlobalAdmin;
   const isPersonalTask = !newTask.team;
-  const canEditSensitive = !editingTask || isPersonalTask || isTeamAdminOrOwner;
+  const canEditSensitive = isGlobalAdmin || (!isTaskFixedLocked && (!editingTask || isPersonalTask || isTeamAdminOrOwner));
+
+  const hasTeamClientsAccess = (teamId) => {
+    if (!teamId) return canAccessClients;
+    if (user?.role === 'admin') return true;
+    const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
+    if (!teamObj || !teamObj.clientsEnabled) return false;
+    const userId = (user?._id || user?.id)?.toString();
+    const member = teamObj.members?.find((m) => (m.user?._id || m.user)?.toString() === userId);
+    return member?.clientsAccess === true;
+  };
+
+  const canSelectClient = hasTeamClientsAccess(newTask.team);
+  const canFilterByClient = hasTeamClientsAccess(filters.team);
 
 
 
@@ -851,6 +994,7 @@ const Tasks = ({ openCreate = false }) => {
   }
 
   const canDeleteTask = (task) => {
+
     if (!user) return false;
 
     // Normalize IDs to strings for comparison
@@ -860,7 +1004,7 @@ const Tasks = ({ openCreate = false }) => {
     const isCreator = taskCreatorId === userId;
 
     if (!task.team) {
-      return isCreator;
+      return task.isFixed ? user.role === 'admin' : isCreator;
     }
 
     // Find the team to check role
@@ -870,7 +1014,7 @@ const Tasks = ({ openCreate = false }) => {
     const team = teams.find(t => (t._id || '').toString() === teamId);
 
     // If team details not found (shouldn't happen if loaded), default to strict
-    if (!team) return isCreator;
+    if (!team) return task.isFixed ? user.role === 'admin' : isCreator;
 
     // Find current user in members
     const member = team.members?.find(m => {
@@ -878,7 +1022,8 @@ const Tasks = ({ openCreate = false }) => {
       return memberUserId === userId;
     });
 
-    if (!member) return isCreator;
+    if (!member) return task.isFixed ? user.role === 'admin' : isCreator;
+    if (task.isFixed) return user.role === 'admin' || ['admin', 'owner'].includes(member.role);
 
     // Permissions: Creator OR Team Owner OR Team Admin
     return isCreator || ['admin', 'owner'].includes(member.role);
@@ -959,7 +1104,7 @@ const Tasks = ({ openCreate = false }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${hasFullVisibility && canFilterByClient ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3 sm:gap-4`}>
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
               Team
@@ -968,7 +1113,11 @@ const Tasks = ({ openCreate = false }) => {
               value={filters.team}
               onChange={(e) => {
                 const teamValue = e.target.value;
-                setFilters({ ...filters, team: teamValue });
+                setFilters((prev) => ({
+                  ...prev,
+                  team: teamValue,
+                  client: hasTeamClientsAccess(teamValue) ? prev.client : '',
+                }));
                 // Save to localStorage
                 if (teamValue) {
                   localStorage.setItem('teamFilter', teamValue);
@@ -1052,6 +1201,27 @@ const Tasks = ({ openCreate = false }) => {
                         </option>
                       ))
                 }
+              </select>
+            </div>
+          )}
+          {canFilterByClient && (
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Client
+              </label>
+              <select
+                value={filters.client}
+                onChange={(e) =>
+                  setFilters({ ...filters, client: e.target.value })
+                }
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+              >
+                <option value="">All Clients</option>
+                {clients.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}{c.companyName ? ` (${c.companyName})` : ''}{c.clientId ? ` - ${c.clientId}` : ''}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -1147,6 +1317,17 @@ const Tasks = ({ openCreate = false }) => {
                       >
                         {task.priority}
                       </span>
+                      {task.isFixed && (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-800'}`}>
+                          <FiLock className="w-3 h-3" />
+                          Fixed{task.fixedAmount !== null && task.fixedAmount !== undefined ? ` (₹${task.fixedAmount})` : ''}
+                        </span>
+                      )}
+                      {!task.isFixed && task.fixedAmount !== null && task.fixedAmount !== undefined && (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-indigo-900/30 text-indigo-300' : 'bg-indigo-100 text-indigo-800'}`}>
+                          ₹{task.fixedAmount}
+                        </span>
+                      )}
                       {task.isBillable ? (
                         <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
                           <FiDollarSign className="w-3 h-3" />
@@ -1240,27 +1421,7 @@ const Tasks = ({ openCreate = false }) => {
                 {editingTask ? 'Edit Task' : 'Create New Task'}
               </h2>
               <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setEditingTask(null);
-                  setCurrentTaskDetails(null);
-                  setActiveTab('details');
-                  setActivities([]);
-                  setNewSubtaskTitle('');
-                  setManualTimeHours('');
-                  setManualTimeMinutes('');
-                  setNewTask({
-                    title: '',
-                    description: '',
-                    team: '',
-                    assignedTo: '',
-                    status: 'todo',
-                    priority: 'medium',
-                    dueDate: '',
-                    tags: '',
-                    isBillable: false,
-                  });
-                }}
+                onClick={closeTaskModal}
                 className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'} transition-colors`}
               >
                 <FiX className="w-6 h-6" />
@@ -1328,6 +1489,12 @@ const Tasks = ({ openCreate = false }) => {
             )}
             {activeTab === 'details' && (
               <form onSubmit={handleCreateTask} className="space-y-4">
+                {isTaskFixedLocked && (
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm ${isDark ? 'bg-amber-900/30 text-amber-200 border border-amber-800' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                    <FiLock className="w-4 h-4 shrink-0" />
+                    <span>This is a fixed task created by an admin. Core details and fixed amount cannot be modified.</span>
+                  </div>
+                )}
                 <div>
                   <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     Title *
@@ -1339,7 +1506,8 @@ const Tasks = ({ openCreate = false }) => {
                     onChange={(e) =>
                       setNewTask({ ...newTask, title: e.target.value })
                     }
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
+                    disabled={isTaskFixedLocked}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
                     placeholder="Enter task title"
                   />
                 </div>
@@ -1352,7 +1520,8 @@ const Tasks = ({ openCreate = false }) => {
                     onChange={(e) =>
                       setNewTask({ ...newTask, description: e.target.value })
                     }
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
+                    disabled={isTaskFixedLocked}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
                     rows="2"
                     placeholder="Enter task description"
                   />
@@ -1365,11 +1534,14 @@ const Tasks = ({ openCreate = false }) => {
                     <select
                       value={newTask.team}
                       onChange={(e) => {
-                        setNewTask({
-                          ...newTask,
-                          team: e.target.value,
-                          assignedTo: '' // Reset assignee when team changes
-                        });
+                        const nextTeam = e.target.value;
+                        setNewTask((prev) => ({
+                          ...prev,
+                          team: nextTeam,
+                          assignedTo: '', // Reset assignee when team changes
+                          client: hasTeamClientsAccess(nextTeam) ? prev.client : '',
+                          fixedAmount: hasTeamClientsAccess(nextTeam) ? prev.fixedAmount : '',
+                        }));
                       }}
                       disabled={!canEditSensitive}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} disabled:cursor-not-allowed`}
@@ -1401,8 +1573,8 @@ const Tasks = ({ openCreate = false }) => {
                             {member.user?.name || 'Deleted User'}
                           </option>
                         ))
-                      ) : editingClientTask && allUsers.length > 0 ? (
-                        allUsers.map((u) => (
+                      ) : (editingClientTask || newTask.client) && (clientUsers.length > 0 || allUsers.length > 0) ? (
+                        (clientUsers.length > 0 ? clientUsers : allUsers).map((u) => (
                           <option key={u._id} value={u._id}>
                             {u.name}
                           </option>
@@ -1474,11 +1646,74 @@ const Tasks = ({ openCreate = false }) => {
                       onChange={(e) =>
                         setNewTask({ ...newTask, tags: e.target.value })
                       }
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white text-gray-900'}`}
+                      disabled={isTaskFixedLocked}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white text-gray-900'}`}
                       placeholder="tag1, tag2, tag3"
                     />
                   </div>
-                  <div className="flex items-center pt-6">
+                  {canSelectClient && (
+                    <div>
+                      <label className={`block text-xs sm:text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Client (Optional)
+                      </label>
+                      <select
+                        value={newTask.client}
+                        disabled={isTaskFixedLocked}
+                        onChange={(e) => {
+                          const nextClient = e.target.value;
+                          setNewTask((prev) => ({
+                            ...prev,
+                            client: nextClient,
+                            fixedAmount: nextClient ? prev.fixedAmount : '',
+                          }));
+                        }}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
+                      >
+                        <option value="">-- Select a Client --</option>
+                        {clients.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.name}{c.companyName ? ` (${c.companyName})` : ''}{c.clientId ? ` - ${c.clientId}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {newTask.client && (isGlobalAdmin || (newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)) && (
+                    <div>
+                      <label className={`block text-xs sm:text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Amount (₹) {!isGlobalAdmin && <span className="text-xs font-normal opacity-75">(Admin Fixed)</span>}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newTask.fixedAmount}
+                        disabled={!isGlobalAdmin}
+                        onChange={(e) =>
+                          setNewTask((prev) => ({ ...prev, fixedAmount: e.target.value }))
+                        }
+                        placeholder={isGlobalAdmin ? 'Fixed client amount (optional)' : ''}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white text-gray-900'}`}
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-6 col-span-full pt-2">
+                    {isGlobalAdmin && (
+                      <label className={`flex items-center gap-2 cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(newTask.isFixed)}
+                          onChange={(e) =>
+                            setNewTask((prev) => ({ ...prev, isFixed: e.target.checked }))
+                          }
+                          className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                        />
+                        <span className="text-sm font-medium flex items-center gap-1">
+                          <FiLock className="w-3.5 h-3.5 text-amber-500" />
+                          Fixed Task
+                        </span>
+                      </label>
+                    )}
                     <label className={`flex items-center gap-2 cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       <input
                         type="checkbox"
@@ -1511,12 +1746,7 @@ const Tasks = ({ openCreate = false }) => {
                 <div className="flex space-x-3 pt-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setEditingTask(null);
-                      setCurrentTaskDetails(null);
-                      setActiveTab('details');
-                    }}
+                    onClick={closeTaskModal}
                     className={`flex-1 px-4 py-3 border-2 ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'} rounded-lg transition-colors font-medium`}
                   >
                     Cancel
@@ -1974,7 +2204,7 @@ const Tasks = ({ openCreate = false }) => {
                     const { taskId, isNew, event } = showBillTypeModal;
                     setShowBillTypeModal({ isOpen: false, taskId: null, isNew: false, event: null });
                     if (!isNew) {
-                      navigate(`/taskflow/bills/create?taskId=${taskId}`);
+                      updateTaskAndRedirectToBill(taskId, 'normal');
                     } else {
                       autoSaveTaskAndRedirectToBill(event, 'normal');
                     }
@@ -1988,7 +2218,7 @@ const Tasks = ({ openCreate = false }) => {
                     const { taskId, isNew, event } = showBillTypeModal;
                     setShowBillTypeModal({ isOpen: false, taskId: null, isNew: false, event: null });
                     if (!isNew) {
-                      navigate(`/taskflow/bills/create-huf?taskId=${taskId}`);
+                      updateTaskAndRedirectToBill(taskId, 'huf');
                     } else {
                       autoSaveTaskAndRedirectToBill(event, 'huf');
                     }
