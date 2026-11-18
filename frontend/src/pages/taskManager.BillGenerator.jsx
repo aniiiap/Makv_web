@@ -54,7 +54,7 @@ const BillGenerator = () => {
             clientId: '',
         },
         items: [
-            { description: 'Professional services', subDescription: '', hsn: '9983', amount: 0, taxRate: 18 }
+            { description: 'Professional services', subDescription: '', hsn: '9983', amount: 0, taxRate: 0 }
         ],
         sentToEmail: '',
     });
@@ -189,7 +189,7 @@ const BillGenerator = () => {
     const addItem = () => {
         setFormData(prev => ({
             ...prev,
-            items: [...prev.items, { description: '', subDescription: '', hsn: '9983', amount: 0, taxRate: 18 }]
+            items: [...prev.items, { description: '', subDescription: '', hsn: '9983', amount: 0, taxRate: 0 }]
         }));
     };
 
@@ -361,28 +361,7 @@ const BillGenerator = () => {
                                     placeholder="Full Billing Address"
                                 ></textarea>
                             </div>
-                            <div>
-                                <label className={labelClass}>GSTIN/UIN</label>
-                                <input
-                                    type="text"
-                                    name="gstin"
-                                    value={formData.buyerDetails.gstin}
-                                    onChange={handleBuyerChange}
-                                    className={inputClass}
-                                    placeholder="Optional"
-                                />
-                            </div>
-                            <div>
-                                <label className={labelClass}>State Code</label>
-                                <input
-                                    type="text"
-                                    name="stateCode"
-                                    value={formData.buyerDetails.stateCode}
-                                    onChange={handleBuyerChange}
-                                    className={inputClass}
-                                    maxLength="2"
-                                />
-                            </div>
+                            
                             <div className="md:col-span-2">
                                 <label className={labelClass}>Send Invoice To (Email)</label>
                                 <input
@@ -476,9 +455,7 @@ const BillGenerator = () => {
                                     <tr>
                                         <th className="p-3 font-semibold">Description</th>
                                         <th className="p-3 font-semibold">Sub-Description</th>
-                                        <th className="p-3 w-24 font-semibold">HSN/SAC</th>
-                                        <th className="p-3 w-24 font-semibold">Tax (%)</th>
-                                        <th className="p-3 w-32 font-semibold">Amount</th>
+                                        <th className="p-3 w-40 font-semibold">Amount</th>
                                         <th className="p-3 w-10"></th>
                                     </tr>
                                 </thead>
@@ -503,22 +480,7 @@ const BillGenerator = () => {
                                                     placeholder="Italic description"
                                                 />
                                             </td>
-                                            <td className="p-2">
-                                                <input
-                                                    type="text"
-                                                    value={item.hsn}
-                                                    onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
-                                                    className={inputClass}
-                                                />
-                                            </td>
-                                            <td className="p-2">
-                                                <input
-                                                    type="text"
-                                                    value={item.taxRate}
-                                                    onChange={(e) => handleItemChange(index, 'taxRate', e.target.value)}
-                                                    className={inputClass}
-                                                />
-                                            </td>
+                                            
                                             <td className="p-2">
                                                 <input
                                                     type="text"
@@ -554,28 +516,7 @@ const BillGenerator = () => {
                         {/* Totals */}
                         <div className="mt-6 flex justify-end">
                             <div className={`w-full md:w-1/2 lg:w-1/3 p-4 rounded-lg space-y-3 ${isDark ? 'bg-gray-750' : 'bg-gray-50'}`}>
-                                <div className="flex justify-between text-sm">
-                                    <span>Taxable Value:</span>
-                                    <span>₹{totals.taxableAmount.toFixed(2)}</span>
-                                </div>
-                                {totals.isMaharashtra ? (
-                                    <>
-                                        <div className="flex justify-between text-sm opacity-80">
-                                            <span>CGST (9%):</span>
-                                            <span>₹{totals.cgst.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm opacity-80 pb-2 border-b border-gray-300 dark:border-gray-600">
-                                            <span>SGST (9%):</span>
-                                            <span>₹{totals.sgst.toFixed(2)}</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="flex justify-between text-sm opacity-80 pb-2 border-b border-gray-300 dark:border-gray-600">
-                                        <span>IGST (18%):</span>
-                                        <span>₹{totals.igst.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between font-bold text-xl pt-1">
+                                <div className="flex justify-between font-bold text-xl">
                                     <span>Total Amount:</span>
                                     <span className="text-primary-600">₹{totals.total.toFixed(2)}</span>
                                 </div>

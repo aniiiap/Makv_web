@@ -11,10 +11,12 @@ const { getIO } = require('../utils/taskManager.socketManager');
 // @access  Private
 exports.getTeams = async (req, res, next) => {
   try {
-    const teams = await TaskManagerTeam.find({
-      'members.user': req.user.id,
-      isActive: true,
-    })
+    const isGlobalAdmin = req.user?.role === 'admin';
+    const query = isGlobalAdmin
+      ? { isActive: true }
+      : { 'members.user': req.user.id, isActive: true };
+
+    const teams = await TaskManagerTeam.find(query)
       .populate('owner', 'name email avatar')
       .populate('members.user', 'name email avatar')
       .sort('-createdAt');
@@ -34,11 +36,12 @@ exports.getTeams = async (req, res, next) => {
 // @access  Private
 exports.getTeam = async (req, res, next) => {
   try {
-    const team = await TaskManagerTeam.findOne({
-      _id: req.params.id,
-      'members.user': req.user.id,
-      isActive: true,
-    })
+    const isGlobalAdmin = req.user?.role === 'admin';
+    const query = isGlobalAdmin
+      ? { _id: req.params.id, isActive: true }
+      : { _id: req.params.id, 'members.user': req.user.id, isActive: true };
+
+    const team = await TaskManagerTeam.findOne(query)
       .populate('owner', 'name email avatar')
       .populate('members.user', 'name email avatar');
 

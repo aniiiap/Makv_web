@@ -1137,14 +1137,20 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   const hasTeamPredefinedTitles = (teamId) => {
-    if (!teamId) return false;
-    const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
-    return Boolean(teamObj?.predefinedTitlesEnabled);
+    if (teamId) {
+      const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
+      if (teamObj) return Boolean(teamObj.predefinedTitlesEnabled);
+    }
+    // If no team is selected yet in modal (or personal/client task):
+    // For admin, always enable standard title dropdown
+    if (user?.role === 'admin') return true;
+    // For regular users, enable if any team has predefinedTitlesEnabled turned on
+    return teams.some((t) => Boolean(t.predefinedTitlesEnabled));
   };
 
   const canSelectClient = hasTeamClientsAccess(newTask.team);
   const canFilterByClient = hasTeamClientsAccess(filters.team);
-  const usePredefinedTitles = hasTeamPredefinedTitles(newTask.team);
+  const usePredefinedTitles = isGlobalAdmin || hasTeamPredefinedTitles(newTask.team);
 
 
 

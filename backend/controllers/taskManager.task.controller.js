@@ -345,7 +345,7 @@ exports.getTask = async (req, res, next) => {
 // @access  Private
 exports.createTask = async (req, res, next) => {
   try {
-    const { title, description, team, assignedTo, status, priority, dueDate, tags, client, isFixed, fixedAmount } =
+    const { title, subtitle, description, team, assignedTo, status, priority, dueDate, tags, client, isFixed, fixedAmount } =
       req.body;
     const isGlobalAdmin = req.user?.role === 'admin';
 
@@ -424,6 +424,7 @@ exports.createTask = async (req, res, next) => {
 
     const task = await TaskManagerTask.create({
       title,
+      subtitle: (req.body.subtitle || subtitle || '').trim(),
       description,
       team,
       client: client || null,
@@ -442,7 +443,17 @@ exports.createTask = async (req, res, next) => {
       .populate('team', 'name')
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
-      .populate('client', 'name companyName');
+      .populate('client', 'name companyName')
+      .populate('checkedBy', 'name email avatar');
+
+    if (populatedTask && populatedTask.status === 'done') {
+      try {
+        const { autoGenerateBillForTask } = require('./billController');
+        await autoGenerateBillForTask(populatedTask, req.user);
+      } catch (billErr) {
+        console.error('[Auto-Bill] Error on task create:', billErr);
+      }
+    }
 
     // Create activity log for task creation
     await createActivityLog(
@@ -908,7 +919,7 @@ exports.updateTask = async (req, res, next) => {
       updateOperators.$unset = { activeTimer: 1 };
     }
 
-    task = await TaskManagerTask.findByIdAndUpdate(req.params.id, updateOperators, {
+        task = await TaskManagerTask.findByIdAndUpdate(req.params.id, updateOperators, {
       new: true,
       runValidators: true,
     })
@@ -916,7 +927,18 @@ exports.updateTask = async (req, res, next) => {
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
       .populate('comments.user', 'name email avatar')
-      .populate('client', 'name companyName');
+      .populate('client', 'name companyName')
+      .populate('checkedBy', 'name email avatar');
+
+    // Auto-generate bill/challan when marked as done
+    if (task && task.status === 'done') {
+      try {
+        const { autoGenerateBillForTask } = require('./billController');
+        await autoGenerateBillForTask(task, req.user);
+      } catch (billErr) {
+        console.error('[Auto-Bill] Error on task update:', billErr);
+      }
+    }
 
     res.json({
       success: true,

@@ -203,13 +203,7 @@ const BillList = () => {
                         <FiPlus className="w-5 h-5" />
                         <span>Generate New Bill</span>
                     </Link>
-                    <Link
-                        to="/taskflow/bills/create-huf"
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-lg hover:from-amber-700 hover:to-amber-800 shadow-md transform hover:scale-105 transition-all"
-                    >
-                        <FiPlus className="w-5 h-5" />
-                        <span>Generate HUF Bill</span>
-                    </Link>
+                    
                 </div>
             </div>
 
