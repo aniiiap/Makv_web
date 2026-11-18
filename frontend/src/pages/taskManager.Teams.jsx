@@ -44,7 +44,7 @@ const Teams = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
-  const [newTeam, setNewTeam] = useState({ name: '', description: '' });
+  const [newTeam, setNewTeam] = useState({ name: '', description: '', predefinedTitlesEnabled: false });
   const [inviteEmail, setInviteEmail] = useState('');
   const { user } = useTaskManagerAuth();
   const { isDark } = useTheme();
@@ -70,7 +70,7 @@ const Teams = () => {
     try {
       await api.post('/teams', newTeam);
       setShowCreateModal(false);
-      setNewTeam({ name: '', description: '' });
+      setNewTeam({ name: '', description: '', predefinedTitlesEnabled: false });
       fetchTeams();
     } catch (error) {
       alert(error.message || 'Failed to create team');
@@ -251,6 +251,13 @@ const Teams = () => {
                         {team.description}
                       </p>
                     )}
+                    {team.predefinedTitlesEnabled && (
+                      <div className="mt-2">
+                        <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full ${isDark ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                          Standard Titles Enabled
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg flex-shrink-0 ${isDark ? 'bg-primary-900' : 'bg-primary-100'}`}>
                     {getRoleIcon(getUserRole(team))}
@@ -336,7 +343,7 @@ const Teams = () => {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setNewTeam({ name: '', description: '' });
+                  setNewTeam({ name: '', description: '', predefinedTitlesEnabled: false });
                 }}
                 className={`transition-colors ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
               >
@@ -373,12 +380,32 @@ const Teams = () => {
                   placeholder="Enter team description"
                 />
               </div>
+              <div className="pt-1">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(newTeam.predefinedTitlesEnabled)}
+                    onChange={(e) =>
+                      setNewTeam({ ...newTeam, predefinedTitlesEnabled: e.target.checked })
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <div>
+                    <span className={`block text-sm font-medium ${isDark ? "text-gray-200" : "text-gray-800"}`}>
+                      Use Standard Task Titles
+                    </span>
+                    <span className={`block text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                      Enables predefined titles & sub-titles dropdowns for this team's tasks
+                    </span>
+                  </div>
+                </label>
+              </div>
               <div className="flex space-x-3 pt-4">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCreateModal(false);
-                    setNewTeam({ name: '', description: '' });
+                    setNewTeam({ name: '', description: '', predefinedTitlesEnabled: false });
                   }}
                   className={`flex-1 px-4 py-3 border-2 rounded-lg transition-colors font-medium ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
                 >
@@ -485,6 +512,55 @@ const Teams = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8">
+              {canManageTeam(selectedTeam) && (
+                <div className={`p-4 rounded-xl border mb-6 flex items-center justify-between transition-colors ${
+                  isDark ? 'bg-gray-700/60 border-gray-600' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Standard Task Titles
+                      </span>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                        selectedTeam.predefinedTitlesEnabled
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300'
+                      }`}>
+                        {selectedTeam.predefinedTitlesEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      When enabled, members pick from predefined titles & sub-titles dropdowns.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(selectedTeam.predefinedTitlesEnabled)}
+                    onClick={async () => {
+                      const nextVal = !selectedTeam.predefinedTitlesEnabled;
+                      try {
+                        await api.put(`/teams/${selectedTeam._id}`, {
+                          predefinedTitlesEnabled: nextVal,
+                        });
+                        setSelectedTeam((prev) => ({ ...prev, predefinedTitlesEnabled: nextVal }));
+                        fetchTeams();
+                      } catch (err) {
+                        alert(err.response?.data?.message || err.message || 'Failed to update setting');
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      selectedTeam.predefinedTitlesEnabled ? 'bg-primary-600' : isDark ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200 ease-in-out mt-1 ${
+                        selectedTeam.predefinedTitlesEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
               <div className="space-y-3">
                 {selectedTeam.members?.filter(m => m.user)?.map((member) => {
                   const isCurrentUser = member.user._id === user.id;

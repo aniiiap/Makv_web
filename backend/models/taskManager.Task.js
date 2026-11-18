@@ -7,6 +7,11 @@ const taskSchema = new mongoose.Schema(
       required: [true, 'Please provide a task title'],
       trim: true,
     },
+    subtitle: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     description: {
       type: String,
       trim: true,
@@ -53,6 +58,19 @@ const taskSchema = new mongoose.Schema(
       default: null,
       min: 0,
     },
+        isChecked: {
+          type: Boolean,
+          default: false,
+        },
+        checkedAt: {
+          type: Date,
+          default: null,
+        },
+        checkedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'TaskManagerUser',
+          default: null,
+        },
     dueDate: {
       type: Date,
     },
@@ -170,6 +188,7 @@ taskSchema.index({ team: 1, status: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ client: 1 });
+taskSchema.index({ isChecked: 1 });
 
 module.exports = mongoose.model('TaskManagerTask', taskSchema);
 

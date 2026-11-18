@@ -5,6 +5,7 @@ const {
     getClientTimeSummary,
     getAllUsers,
     checkClientsAccess,
+    createClient,
 } = require('../controllers/taskManager.client.controller');
 const { protect } = require('../middleware/taskManager.auth');
 const { requireClientsAccess } = require('../middleware/clientsAccess.middleware');
@@ -21,6 +22,7 @@ router.get('/users', getAllUsers);
 
 // Client routes
 router.get('/', requireClientsAccess, getClients);
+router.post('/', requireClientsAccess, createClient);
 router.get('/:id', requireClientsAccess, getClient);
 router.get('/:id/time-summary', requireClientsAccess, getClientTimeSummary);
 

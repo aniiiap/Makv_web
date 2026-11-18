@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiDollarSign, FiBriefcase } from 'react-icons/fi';
 import api from '../utils/taskManager.api';
 
-const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask, hideDone = false }) => {
+const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask, hideDone = false, isAdmin = false, onToggleChecked = null }) => {
   const [draggedTask, setDraggedTask] = useState(null);
 
   const allColumns = [
@@ -86,8 +86,29 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                       onClick={() => onTaskClick(task)}
                     >
                       {task.title}
+                      {task.subtitle && (
+                        <span className="block text-xs font-normal text-gray-500 mt-0.5">
+                          {task.subtitle}
+                        </span>
+                      )}
                     </h4>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {isAdmin && onToggleChecked && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleChecked(task._id);
+                          }}
+                          className="px-1.5 py-0.5 text-[11px] font-medium rounded border border-gray-300 bg-gray-50 text-gray-600 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors flex items-center gap-1"
+                          title="Admin Check: Mark as Checked and move to Checked Tasks"
+                        >
+                          <span className="w-3 h-3 rounded border border-gray-400 flex items-center justify-center text-[9px] font-bold">
+                            {task.isChecked ? '✓' : ''}
+                          </span>
+                          <span>Check</span>
+                        </button>
+                      )}
                       {onEditTask && (
                         <button
                           onClick={(e) => {

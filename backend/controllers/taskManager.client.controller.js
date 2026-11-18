@@ -146,3 +146,88 @@ exports.getAllUsers = async (req, res, next) => {
         next(error);
     }
 };
+
+
+// @desc    Create a new client from TaskFlow
+// @route   POST /api/taskflow/clients
+// @access  Private
+exports.createClient = async (req, res, next) => {
+    try {
+        const {
+            name,
+            email,
+            phone,
+            companyName,
+            address,
+            city,
+            state,
+            pincode,
+            pan,
+            aadhar,
+            gstin,
+            clientId: customClientId,
+        } = req.body;
+
+        if (!name || !name.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Client name is required',
+            });
+        }
+
+        // Generate clientId if not provided
+        let clientId = customClientId && customClientId.trim() ? customClientId.trim() : null;
+        if (!clientId) {
+            let nextNum = (await Client.countDocuments()) + 1;
+            clientId = `CLI${String(nextNum).padStart(4, '0')}`;
+            while (await Client.exists({ clientId })) {
+                nextNum += 1;
+                clientId = `CLI${String(nextNum).padStart(4, '0')}`;
+            }
+        } else {
+            const exists = await Client.findOne({ clientId });
+            if (exists) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Client ID ${clientId} already exists`,
+                });
+            }
+        }
+
+        const clientData = {
+            clientId,
+            name: name.trim(),
+            companyName: companyName ? companyName.trim() : '',
+            phone: phone ? phone.trim() : '',
+            address: address ? address.trim() : '',
+            city: city ? city.trim() : '',
+            state: state ? state.trim() : '',
+            pincode: pincode ? pincode.trim() : '',
+            pan: pan ? pan.trim() : '',
+            aadhar: aadhar ? aadhar.trim() : '',
+            gstin: gstin ? gstin.trim() : '',
+            status: 'active',
+        };
+
+        if (email && email.trim()) {
+            clientData.email = email.toLowerCase().trim();
+        }
+
+        const client = await Client.create(clientData);
+
+        res.status(201).json({
+            success: true,
+            message: 'Client created successfully',
+            data: client,
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern || {})[0] || 'field';
+            return res.status(400).json({
+                success: false,
+                message: `${field} already exists`,
+            });
+        }
+        next(error);
+    }
+};

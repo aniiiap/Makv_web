@@ -34,6 +34,8 @@ const activityLogSchema = new mongoose.Schema(
         'timer_stopped',
         'attachment_added',
         'attachment_deleted',
+        'checked',
+        'unchecked',
       ],
     },
     field: String, // Which field was changed (status, priority, assignedTo, etc.)

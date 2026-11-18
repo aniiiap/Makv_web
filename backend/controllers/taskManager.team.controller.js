@@ -63,11 +63,12 @@ exports.getTeam = async (req, res, next) => {
 // @access  Private
 exports.createTeam = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, predefinedTitlesEnabled } = req.body;
 
     const team = await TaskManagerTeam.create({
       name,
       description,
+      predefinedTitlesEnabled: Boolean(predefinedTitlesEnabled),
       owner: req.user.id,
     });
 
@@ -98,12 +99,13 @@ exports.updateTeam = async (req, res, next) => {
       });
     }
 
-    // Check if user is owner or admin
+    // Check if user is owner or admin (or global admin)
+    const isGlobalAdmin = req.user?.role === 'admin';
     const member = team.members.find(
       (m) => m.user.toString() === req.user.id.toString()
     );
 
-    if (!member || !['owner', 'admin'].includes(member.role)) {
+    if (!isGlobalAdmin && (!member || !['owner', 'admin'].includes(member.role))) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this team',

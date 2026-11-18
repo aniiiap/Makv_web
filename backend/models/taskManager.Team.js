@@ -60,6 +60,10 @@ const teamSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    predefinedTitlesEnabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

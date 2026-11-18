@@ -18,6 +18,7 @@ import TaskManagerTeams from '../pages/taskManager.Teams';
 import TaskManagerCalendar from '../pages/taskManager.Calendar';
 import TaskManagerAnalytics from '../pages/taskManager.Analytics';
 import TaskManagerCompletedTasks from '../pages/taskManager.CompletedTasks';
+import TaskManagerCheckedTasks from '../pages/taskManager.CheckedTasks';
 import BillList from '../pages/taskManager.BillList';
 import BillGenerator from '../pages/taskManager.BillGenerator';
 import HUFBillGenerator from '../pages/taskManager.HUFBillGenerator';
@@ -31,6 +32,8 @@ import FirstLoginPasswordSetup from '../pages/taskManager.FirstLoginPasswordSetu
 import Clients from '../pages/taskManager.Clients';
 import ClientDetail from '../pages/taskManager.ClientDetail';
 import MyDailyWork from '../pages/taskManager.MyDailyWork';
+import PredefinedTitles from '../pages/taskManager.PredefinedTitles';
+import TitleDropdownsControl from '../pages/taskManager.TitleDropdownsControl';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const clientIdToUse = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.trim() !== ''
@@ -76,6 +79,13 @@ function TaskFlowApp() {
                   <PrivateRoute>
                     <Layout>
                       <TaskManagerTasks />
+                    </Layout>
+                  </PrivateRoute>
+                } />
+                <Route path="tasks/checked" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <TaskManagerCheckedTasks />
                     </Layout>
                   </PrivateRoute>
                 } />
@@ -176,6 +186,18 @@ function TaskFlowApp() {
                 <Route path="admin/clients-access" element={
                   <AdminRoute>
                     <ClientsAccessControl />
+                  </AdminRoute>
+                } />
+                <Route path="admin/title-dropdowns" element={
+                  <AdminRoute>
+                    <TitleDropdownsControl />
+                  </AdminRoute>
+                } />
+                <Route path="admin/predefined-titles" element={
+                  <AdminRoute>
+                    <Layout>
+                      <PredefinedTitles />
+                    </Layout>
                   </AdminRoute>
                 } />
                 <Route path="admin/payslip" element={

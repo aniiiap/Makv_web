@@ -5,6 +5,7 @@ import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import { useTimer } from '../context/taskManager.TimerContext';
 import KanbanBoard from '../components/taskManager.KanbanBoard';
+import PredefinedTitleSelect from '../components/taskManager.PredefinedTitleSelect';
 import {
   FiPlus, FiFilter, FiList, FiGrid, FiFolder, FiUser, FiUsers,
   FiCalendar, FiTag, FiEdit2, FiX, FiCheckCircle, FiClock,
@@ -29,9 +30,88 @@ const Tasks = ({ openCreate = false }) => {
   const [clientUsers, setClientUsers] = useState([]);
   const [clients, setClients] = useState([]);
   const [canAccessClients, setCanAccessClients] = useState(false);
+  const [predefinedTitles, setPredefinedTitles] = useState([]);
   const [editingClientTask, setEditingClientTask] = useState(null);
   const [editingFixedTask, setEditingFixedTask] = useState(false);
   const [editingFixedTeamId, setEditingFixedTeamId] = useState('');
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [isAddingClient, setIsAddingClient] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    companyName: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    pan: '',
+    aadhar: '',
+    gstin: '',
+  });
+
+  const countWords = (str) => {
+    if (!str || typeof str !== 'string' || !str.trim()) return 0;
+    return str.trim().split(/\s+/).filter(Boolean).length;
+  };
+
+  const fetchClientsList = async () => {
+    try {
+      const clientsRes = await api.get('/clients').catch(() => []);
+      const sortedClients = Array.isArray(clientsRes)
+        ? [...clientsRes].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        : [];
+      setClients(sortedClients);
+      return sortedClients;
+    } catch (err) {
+      console.error('Error fetching clients:', err);
+      return [];
+    }
+  };
+
+  const handleQuickAddClient = async (e) => {
+    e.preventDefault();
+    if (!newClientData.name || !newClientData.name.trim()) {
+      alert('Client Name is required');
+      return;
+    }
+    if (!newClientData.email || !newClientData.email.trim()) {
+      alert('Client Email is required');
+      return;
+    }
+    try {
+      setIsAddingClient(true);
+      const res = await api.post('/clients', newClientData);
+      const created = res?.data || res?.client || res;
+      await fetchClientsList();
+      const newClientId = created?._id || created?.id;
+      if (newClientId) {
+        setNewTask((prev) => ({
+          ...prev,
+          client: newClientId,
+        }));
+      }
+      setShowAddClientModal(false);
+      setNewClientData({
+        name: '',
+        email: '',
+        phone: '',
+        companyName: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        pan: '',
+        aadhar: '',
+        gstin: '',
+      });
+      alert(`Client "${created?.name || newClientData.name}" added successfully`);
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to add client');
+    } finally {
+      setIsAddingClient(false);
+    }
+  };
 
   // Custom Timer Context
   const {
@@ -76,6 +156,7 @@ const Tasks = ({ openCreate = false }) => {
     isFixed: false,
     fixedAmount: '',
     title: '',
+    subtitle: '',
     description: '',
     team: '',
     client: '',
@@ -103,15 +184,19 @@ const Tasks = ({ openCreate = false }) => {
         const hasClientAccess = user?.role === 'admin' || accessRes?.canAccess === true;
         setCanAccessClients(hasClientAccess);
 
+        // Fetch predefined titles
+        try {
+          const titlesRes = await api.get('/tasks/predefined-titles');
+          setPredefinedTitles(titlesRes.data || []);
+        } catch (titleErr) {
+          console.error('Error fetching predefined titles:', titleErr);
+        }
+
         if (hasClientAccess) {
-          const [clientsRes, usersRes] = await Promise.all([
-            api.get('/clients').catch(() => []),
+          const [sortedClients, usersRes] = await Promise.all([
+            fetchClientsList(),
             api.get('/clients/users').catch(() => []),
           ]);
-          const sortedClients = Array.isArray(clientsRes)
-            ? [...clientsRes].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-            : [];
-          setClients(sortedClients);
           const activeUsers = Array.isArray(usersRes) ? usersRes : [];
           setClientUsers(activeUsers);
           if (user?.role === 'admin') {
@@ -235,7 +320,7 @@ const Tasks = ({ openCreate = false }) => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { excludeChecked: 'true' };
       if (filters.team) params.team = filters.team;
       if (filters.client) params.client = filters.client;
       if (filters.createdBy) params.createdBy = filters.createdBy;
@@ -275,6 +360,37 @@ const Tasks = ({ openCreate = false }) => {
     }
   };
 
+  const [togglingCheckedId, setTogglingCheckedId] = useState(null);
+
+  const handleToggleTaskChecked = async (taskId) => {
+    if (user?.role !== 'admin') {
+      alert('Only admins are authorized to check tasks');
+      return;
+    }
+    const target = tasks.find((t) => t._id === taskId);
+    const confirmCheck = window.confirm(
+      `Mark "${target?.title || 'this task'}" as Checked?\nIt will be moved to the Checked Tasks page.`
+    );
+    if (!confirmCheck) return;
+
+    try {
+      setTogglingCheckedId(taskId);
+      setTasks((prev) => prev.filter((t) => t._id !== taskId));
+      if (editingTask === taskId) {
+        setShowCreateModal(false);
+        setEditingTask(null);
+      }
+      await api.patch(`/tasks/${taskId}/toggle-checked`);
+      alert('Task marked as checked and moved to Checked Tasks page.');
+    } catch (err) {
+      console.error('Error checking task:', err);
+      alert(err.response?.data?.message || 'Failed to mark task as checked');
+      fetchTasks();
+    } finally {
+      setTogglingCheckedId(null);
+    }
+  };
+
   // Client-side search filtering — does NOT trigger any API calls or re-renders beyond the list
   const filteredTasks = useMemo(() => {
     if (!searchText.trim()) return tasks;
@@ -284,6 +400,14 @@ const Tasks = ({ openCreate = false }) => {
       (task.description && task.description.toLowerCase().includes(query))
     );
   }, [tasks, searchText]);
+
+  const handleOpenCreateModal = () => {
+    resetTaskForm();
+    if (filters.team) {
+      setNewTask((prev) => ({ ...prev, team: filters.team }));
+    }
+    setShowCreateModal(true);
+  };
 
   const resetTaskForm = () => {
     setNewTask({
@@ -320,20 +444,34 @@ const Tasks = ({ openCreate = false }) => {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
+    if (!newTask.client) {
+      alert('Please select a Client');
+      return;
+    }
+    if (!newTask.subtitle || !newTask.subtitle.trim()) {
+      alert('Please select or enter a Sub-title');
+      return;
+    }
+    if (!newTask.description || !newTask.description.trim()) {
+      alert('Please enter a Description');
+      return;
+    }
+    if (countWords(newTask.description) > 15) {
+      alert('Description cannot exceed 15 words');
+      return;
+    }
     try {
       setIsSavingTask(true);
       if (editingTask) {
         handleUpdateTask(e);
         return;
       }
-      const isGlobalAdmin = user?.role === 'admin';
-      if (isGlobalAdmin && newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined) {
-        const parsedFixed = Number(newTask.fixedAmount);
-        if (!Number.isFinite(parsedFixed) || parsedFixed < 0) {
-          alert('Please enter a valid non-negative fixed amount');
-          setIsSavingTask(false);
-          return;
-        }
+      const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
+      const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
+      if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0)) {
+        alert('Please enter a valid non-negative fixed amount');
+        setIsSavingTask(false);
+        return;
       }
       const taskData = {
         ...newTask,
@@ -341,16 +479,9 @@ const Tasks = ({ openCreate = false }) => {
         client: newTask.client || null,
         assignedTo: newTask.assignedTo || ((newTask.team || newTask.client) ? null : user?.id), // Default to self for personal tasks
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
+        fixedAmount: (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
+        isFixed: parsedAmount !== null && parsedAmount > 0,
       };
-      if (isGlobalAdmin) {
-        taskData.isFixed = Boolean(newTask.isFixed);
-        taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
-          ? Number(newTask.fixedAmount)
-          : null;
-      } else {
-        delete taskData.isFixed;
-        delete taskData.fixedAmount;
-      }
       await api.post('/tasks', taskData);
       closeTaskModal();
       fetchTasks();
@@ -391,6 +522,7 @@ const Tasks = ({ openCreate = false }) => {
 
     setNewTask({
       title: task.title,
+      subtitle: task.subtitle || '',
       description: task.description || '',
       team: task.team?._id || task.team || '',
       client: task.client?._id || task.client || '',
@@ -673,22 +805,23 @@ const Tasks = ({ openCreate = false }) => {
       isBillable: overrideIsBillable !== undefined ? overrideIsBillable : newTask.isBillable
     };
 
-    if (isGlobalAdmin) {
-      taskData.isFixed = Boolean(newTask.isFixed);
-      taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
-        ? Number(newTask.fixedAmount)
-        : null;
-    } else {
-      delete taskData.isFixed;
-      delete taskData.fixedAmount;
+    const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
+    const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
+    taskData.fixedAmount = (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
+    taskData.isFixed = taskData.fixedAmount !== null && taskData.fixedAmount > 0;
+
+    if (!isGlobalAdmin) {
       if (editingTask && editingFixedTask && !canEditFixedDetails) {
         delete taskData.title;
+        delete taskData.subtitle;
         delete taskData.description;
         delete taskData.team;
         delete taskData.client;
         delete taskData.priority;
         delete taskData.dueDate;
         delete taskData.tags;
+        delete taskData.fixedAmount;
+        delete taskData.isFixed;
       }
     }
 
@@ -706,9 +839,21 @@ const Tasks = ({ openCreate = false }) => {
     e.preventDefault();
     if (isSavingTask) return;
 
-    // Check if the task minimum requirement (title) is met
+    // Check if task compulsory requirements are met
     if (!newTask.title.trim()) {
-      toast.error("Please enter at least a Task Title before generating a bill.");
+      toast.error("Please enter a Task Title");
+      return;
+    }
+    if (!newTask.client) {
+      toast.error("Please select a Client");
+      return;
+    }
+    if (!newTask.subtitle || !newTask.subtitle.trim()) {
+      toast.error("Please select or enter a Sub-title");
+      return;
+    }
+    if (!newTask.description || !newTask.description.trim()) {
+      toast.error("Please enter a Description");
       return;
     }
 
@@ -723,15 +868,10 @@ const Tasks = ({ openCreate = false }) => {
         isBillable: false // Ensure it's false initially, the backend marks it true upon bill generation
       };
 
-      if (user?.role === 'admin') {
-        taskData.isFixed = Boolean(newTask.isFixed);
-        taskData.fixedAmount = (newTask.client && newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)
-          ? Number(newTask.fixedAmount)
-          : null;
-      } else {
-        delete taskData.isFixed;
-        delete taskData.fixedAmount;
-      }
+      const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
+      const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
+      taskData.fixedAmount = (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
+      taskData.isFixed = taskData.fixedAmount !== null && taskData.fixedAmount > 0;
 
       const response = await api.post('/tasks', taskData);
 
@@ -773,6 +913,22 @@ const Tasks = ({ openCreate = false }) => {
   const handleUpdateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
+    if (!newTask.client) {
+      alert('Please select a Client');
+      return;
+    }
+    if (!newTask.subtitle || !newTask.subtitle.trim()) {
+      alert('Please select or enter a Sub-title');
+      return;
+    }
+    if (!newTask.description || !newTask.description.trim()) {
+      alert('Please enter a Description');
+      return;
+    }
+    if (countWords(newTask.description) > 15) {
+      alert('Description cannot exceed 15 words');
+      return;
+    }
     try {
       setIsSavingTask(true);
       const taskData = buildUpdatePayload();
@@ -980,8 +1136,15 @@ const Tasks = ({ openCreate = false }) => {
     return member?.clientsAccess === true;
   };
 
+  const hasTeamPredefinedTitles = (teamId) => {
+    if (!teamId) return false;
+    const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
+    return Boolean(teamObj?.predefinedTitlesEnabled);
+  };
+
   const canSelectClient = hasTeamClientsAccess(newTask.team);
   const canFilterByClient = hasTeamClientsAccess(filters.team);
+  const usePredefinedTitles = hasTeamPredefinedTitles(newTask.team);
 
 
 
@@ -1074,7 +1237,7 @@ const Tasks = ({ openCreate = false }) => {
             <span className="sm:hidden">Export</span>
           </button>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleOpenCreateModal}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl font-medium flex-1 sm:flex-none justify-center"
           >
             <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1238,6 +1401,8 @@ const Tasks = ({ openCreate = false }) => {
           onDeleteTask={handleDeleteTask}
           canDeleteTask={canDeleteTask}
           hideDone={!filters.status}
+          isAdmin={user?.role === 'admin'}
+          onToggleChecked={handleToggleTaskChecked}
         />
       ) : (
         /* List View */
@@ -1247,7 +1412,7 @@ const Tasks = ({ openCreate = false }) => {
             <p className={`text-base sm:text-lg mb-2 ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>No tasks found</p>
             <p className={`text-xs sm:text-sm mb-4 sm:mb-6 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>Create your first task to get started!</p>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
             >
               <FiPlus className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1269,8 +1434,36 @@ const Tasks = ({ openCreate = false }) => {
                         className={`text-base sm:text-xl font-semibold hover:text-primary-600 transition-colors flex-1 text-left ${isDark ? 'text-white' : 'text-gray-900'}`}
                       >
                         {task.title}
+                        {task.subtitle && (
+                          <span className={`ml-2 text-xs font-normal px-2 py-0.5 rounded border inline-block ${
+                            isDark ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}>
+                            {task.subtitle}
+                          </span>
+                        )}
                       </button>
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {user?.role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTaskChecked(task._id);
+                            }}
+                            disabled={togglingCheckedId === task._id}
+                            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              isDark
+                                ? 'bg-gray-700 text-gray-300 border-gray-600 hover:border-emerald-500 hover:text-emerald-300 hover:bg-emerald-950/30'
+                                : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            title="Admin Check: Mark as Checked and move to Checked Tasks"
+                          >
+                            <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
+                              {task.isChecked ? '✓' : ''}
+                            </span>
+                            <span>Check</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEditTask(task)}
                           className="p-1.5 sm:p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -1417,9 +1610,25 @@ const Tasks = ({ openCreate = false }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
           <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-xl sm:rounded-2xl max-w-4xl w-full p-4 sm:p-6 my-4 sm:my-8 shadow-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <div className="flex items-center gap-3">
+                <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {editingTask ? 'Edit Task' : 'Create New Task'}
-              </h2>
+                </h2>
+              {editingTask && isGlobalAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleToggleTaskChecked(editingTask)}
+                  disabled={togglingCheckedId === editingTask}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-all"
+                  title="Mark task as Checked and move to Checked Tasks"
+                >
+                  <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
+                    ✓
+                  </span>
+                  <span>Mark as Checked</span>
+                </button>
+              )}
+              </div>
               <button
                 onClick={closeTaskModal}
                 className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'} transition-colors`}
@@ -1495,35 +1704,134 @@ const Tasks = ({ openCreate = false }) => {
                     <span>This is a fixed task created by an admin. Core details and fixed amount cannot be modified.</span>
                   </div>
                 )}
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Title *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTask.title}
-                    onChange={(e) =>
-                      setNewTask({ ...newTask, title: e.target.value })
-                    }
+                {canSelectClient && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Client *
+                      </label>
+                      {canSelectClient && !isTaskFixedLocked && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAddClientModal(true)}
+                          className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <FiPlus className="w-3.5 h-3.5" /> Add Client
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      required
+                      value={newTask.client}
+                      disabled={isTaskFixedLocked}
+                      onChange={(e) => {
+                        const nextClient = e.target.value;
+                        setNewTask((prev) => ({
+                          ...prev,
+                          client: nextClient,
+                        }));
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 text-sm ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
+                    >
+                      <option value="">-- Select a Client --</option>
+                      {clients.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}{c.companyName ? ` (${c.companyName})` : ''}{c.clientId ? ` - ${c.clientId}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Title & Sub-title Input: Predefined dropdown for teams with standard titles enabled (Option B), free-text otherwise */}
+                {usePredefinedTitles ? (
+                  <PredefinedTitleSelect
+                    predefinedTitles={predefinedTitles}
+                    titleValue={newTask.title}
+                    subtitleValue={newTask.subtitle || ''}
+                    onTitleChange={(val) => setNewTask((prev) => ({ ...prev, title: val }))}
+                    onSubtitleChange={(val, amt) => {
+                      setNewTask((prev) => ({
+                        ...prev,
+                        subtitle: val,
+                        ...(amt !== undefined && amt !== null && Number(amt) > 0 ? {
+                          fixedAmount: String(amt),
+                          isFixed: true,
+                        } : {}),
+                      }));
+                    }}
                     disabled={isTaskFixedLocked}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
-                    placeholder="Enter task title"
+                    isDark={isDark}
+                    isGlobalAdmin={isGlobalAdmin}
                   />
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Title *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newTask.title}
+                        onChange={(e) =>
+                          setNewTask({ ...newTask, title: e.target.value })
+                        }
+                        disabled={isTaskFixedLocked}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
+                        placeholder="Enter task title"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Sub-title *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newTask.subtitle || ''}
+                        onChange={(e) =>
+                          setNewTask({ ...newTask, subtitle: e.target.value })
+                        }
+                        disabled={isTaskFixedLocked}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
+                        placeholder="Enter task sub-title"
+                      />
+                    </div>
+                  </div>
+                )}
+
+
                 <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Description
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Description *
+                    </label>
+                    <span className={`text-xs ${
+                      countWords(newTask.description) >= 15
+                        ? 'text-amber-500 font-semibold'
+                        : isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      {countWords(newTask.description)} / 15 words
+                    </span>
+                  </div>
                   <textarea
+                    required
                     value={newTask.description}
-                    onChange={(e) =>
-                      setNewTask({ ...newTask, description: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const words = val.trim().split(/\s+/).filter(Boolean);
+                      if (words.length > 15) {
+                        const trimmed = words.slice(0, 15).join(' ');
+                        setNewTask((prev) => ({ ...prev, description: trimmed }));
+                        return;
+                      }
+                      setNewTask((prev) => ({ ...prev, description: val }));
+                    }}
                     disabled={isTaskFixedLocked}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
                     rows="2"
-                    placeholder="Enter task description"
+                    placeholder="Enter task description (max 15 words)"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -1651,69 +1959,9 @@ const Tasks = ({ openCreate = false }) => {
                       placeholder="tag1, tag2, tag3"
                     />
                   </div>
-                  {canSelectClient && (
-                    <div>
-                      <label className={`block text-xs sm:text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Client (Optional)
-                      </label>
-                      <select
-                        value={newTask.client}
-                        disabled={isTaskFixedLocked}
-                        onChange={(e) => {
-                          const nextClient = e.target.value;
-                          setNewTask((prev) => ({
-                            ...prev,
-                            client: nextClient,
-                            fixedAmount: nextClient ? prev.fixedAmount : '',
-                          }));
-                        }}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
-                      >
-                        <option value="">-- Select a Client --</option>
-                        {clients.map((c) => (
-                          <option key={c._id} value={c._id}>
-                            {c.name}{c.companyName ? ` (${c.companyName})` : ''}{c.clientId ? ` - ${c.clientId}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {newTask.client && (isGlobalAdmin || (newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined)) && (
-                    <div>
-                      <label className={`block text-xs sm:text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Amount (₹) {!isGlobalAdmin && <span className="text-xs font-normal opacity-75">(Admin Fixed)</span>}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={newTask.fixedAmount}
-                        disabled={!isGlobalAdmin}
-                        onChange={(e) =>
-                          setNewTask((prev) => ({ ...prev, fixedAmount: e.target.value }))
-                        }
-                        placeholder={isGlobalAdmin ? 'Fixed client amount (optional)' : ''}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white text-gray-900'}`}
-                      />
-                    </div>
-                  )}
+                  
                   <div className="flex flex-wrap items-center gap-6 col-span-full pt-2">
-                    {isGlobalAdmin && (
-                      <label className={`flex items-center gap-2 cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(newTask.isFixed)}
-                          onChange={(e) =>
-                            setNewTask((prev) => ({ ...prev, isFixed: e.target.checked }))
-                          }
-                          className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <span className="text-sm font-medium flex items-center gap-1">
-                          <FiLock className="w-3.5 h-3.5 text-amber-500" />
-                          Fixed Task
-                        </span>
-                      </label>
-                    )}
+                    
                     <label className={`flex items-center gap-2 cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       <input
                         type="checkbox"
@@ -2190,6 +2438,167 @@ const Tasks = ({ openCreate = false }) => {
       )}
 
       {/* Bill Type Selection Modal */}
+      {/* Quick Add Client Modal */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[70] p-4 overflow-y-auto">
+          <div className={`rounded-2xl max-w-lg w-full p-6 shadow-2xl my-8 ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
+              <h3 className="text-lg font-bold">Add New Client</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAddClient} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahul Sharma"
+                  value={newClientData.name}
+                  onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="user@example.com"
+                    value={newClientData.email}
+                    onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Phone</label>
+                  <input
+                    type="text"
+                    placeholder="10 digit mobile"
+                    value={newClientData.phone}
+                    onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Company Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ABC Pvt Ltd"
+                  value={newClientData.companyName}
+                  onChange={(e) => setNewClientData({ ...newClientData, companyName: e.target.value })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Address</label>
+                <input
+                  type="text"
+                  placeholder="Street / Office address"
+                  value={newClientData.address}
+                  onChange={(e) => setNewClientData({ ...newClientData, address: e.target.value })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">City</label>
+                  <input
+                    type="text"
+                    placeholder="City"
+                    value={newClientData.city}
+                    onChange={(e) => setNewClientData({ ...newClientData, city: e.target.value })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">State</label>
+                  <input
+                    type="text"
+                    placeholder="State"
+                    value={newClientData.state}
+                    onChange={(e) => setNewClientData({ ...newClientData, state: e.target.value })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    placeholder="Pincode"
+                    value={newClientData.pincode}
+                    onChange={(e) => setNewClientData({ ...newClientData, pincode: e.target.value })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">PAN</label>
+                  <input
+                    type="text"
+                    placeholder="ABCDE1234F"
+                    value={newClientData.pan}
+                    onChange={(e) => setNewClientData({ ...newClientData, pan: e.target.value.toUpperCase() })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg uppercase ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Aadhaar</label>
+                  <input
+                    type="text"
+                    placeholder="12 digits"
+                    value={newClientData.aadhar}
+                    onChange={(e) => setNewClientData({ ...newClientData, aadhar: e.target.value })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">GSTIN</label>
+                  <input
+                    type="text"
+                    placeholder="GSTIN"
+                    value={newClientData.gstin}
+                    onChange={(e) => setNewClientData({ ...newClientData, gstin: e.target.value.toUpperCase() })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg uppercase ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowAddClientModal(false)}
+                  className="flex-1 px-4 py-2 text-sm border rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingClient}
+                  className="flex-1 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {isAddingClient ? 'Adding...' : 'Add Client'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showBillTypeModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-sm rounded-2xl shadow-xl overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>

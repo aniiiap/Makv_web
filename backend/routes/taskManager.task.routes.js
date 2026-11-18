@@ -26,6 +26,7 @@ const {
   clearActivities,
   addAttachment,
   deleteAttachment,
+  toggleTaskChecked,
 } = require('../controllers/taskManager.task.controller');
 const { protect } = require('../middleware/taskManager.auth');
 const { documentUpload } = require('../config/cloudinary');
@@ -33,6 +34,9 @@ const { documentUpload } = require('../config/cloudinary');
 const router = express.Router();
 
 router.use(protect);
+
+const { getPredefinedTitles } = require('../controllers/taskManager.predefinedTitle.controller');
+router.get('/predefined-titles', getPredefinedTitles);
 
 router.get('/stats/dashboard', getDashboardStats);
 router.get('/stats/analytics', getAnalyticsStats);
@@ -57,6 +61,8 @@ router.delete('/:id/timer/entries/:entryIndex', deleteTimeEntry);
 router.delete('/:id/timer/reset', resetTimeTracking);
 router.post('/:id/attachments', documentUpload.array('files', 10), addAttachment);
 router.delete('/:id/attachments/:attachmentId', deleteAttachment);
+
+router.patch('/:id/toggle-checked', toggleTaskChecked);
 
 module.exports = router;
 

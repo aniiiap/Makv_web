@@ -214,6 +214,29 @@ exports.getTasks = async (req, res, next) => {
       }
     }
 
+    // Filter by checked status
+    if (req.query.checked === 'true') {
+      const checkedCondition = { isChecked: true };
+      if (query.$and) {
+        query.$and.push(checkedCondition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, checkedCondition];
+        delete query.$or;
+      } else {
+        Object.assign(query, checkedCondition);
+      }
+    } else if (req.query.checked === 'false' || req.query.excludeChecked === 'true') {
+      const uncheckedCondition = { isChecked: { $ne: true } };
+      if (query.$and) {
+        query.$and.push(uncheckedCondition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, uncheckedCondition];
+        delete query.$or;
+      } else {
+        Object.assign(query, uncheckedCondition);
+      }
+    }
+
     // Feature 2: Task Visibility on Review
     // When a task is 'in-review', it should only be visible to the reviewer (the person it is currently assignedTo)
     // admin, and the creator. Other team members cannot see it while it's in review.
@@ -270,7 +293,8 @@ exports.getTask = async (req, res, next) => {
       .populate('assignedTo', 'name email avatar')
       .populate('createdBy', 'name email avatar')
       .populate('comments.user', 'name email avatar')
-      .populate('client', 'name companyName email address city state pincode gstin clientId');
+      .populate('client', 'name companyName email address city state pincode gstin clientId')
+      .populate('checkedBy', 'name email avatar');
 
     if (!task) {
       return res.status(404).json({
@@ -2593,6 +2617,60 @@ exports.deleteAttachment = async (req, res, next) => {
     res.json({
       success: true,
       data: task,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle task checked status
+// @route   PATCH /api/tasks/:id/toggle-checked
+// @access  Private (Admin only)
+exports.toggleTaskChecked = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins are authorized to mark tasks as checked',
+      });
+    }
+
+    const task = await TaskManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    const willBeChecked = !task.isChecked;
+    task.isChecked = willBeChecked;
+    task.checkedAt = willBeChecked ? new Date() : null;
+    task.checkedBy = willBeChecked ? req.user.id : null;
+
+    await task.save();
+
+    await createActivityLog(
+      task._id,
+      req.user.id,
+      willBeChecked ? 'checked' : 'unchecked',
+      'isChecked',
+      !willBeChecked,
+      willBeChecked,
+      willBeChecked ? 'Marked task as checked' : 'Unchecked task'
+    );
+
+    const populatedTask = await TaskManagerTask.findById(task._id)
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar')
+      .populate('checkedBy', 'name email avatar')
+      .populate('client', 'name companyName');
+
+    res.json({
+      success: true,
+      message: willBeChecked ? 'Task marked as checked' : 'Task unchecked',
+      data: populatedTask,
     });
   } catch (error) {
     next(error);

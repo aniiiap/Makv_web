@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUsers, FiUserPlus, FiShield, FiTrendingUp, FiLogOut, FiFileText } from 'react-icons/fi';
+import {
+    FiUsers,
+    FiUserPlus,
+    FiShield,
+    FiTrendingUp,
+    FiLogOut,
+    FiFileText,
+    FiTag,
+} from 'react-icons/fi';
 import adminApi from '../utils/adminApi';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 
@@ -63,7 +71,7 @@ const AdminDashboard = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
         );
@@ -150,6 +158,19 @@ const AdminDashboard = () => {
                             <div className="text-left">
                                 <h3 className="font-semibold text-gray-900">Clients Access Control</h3>
                                 <p className="text-sm text-gray-600">Grant clients access to teams and members</p>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/taskflow/admin/title-dropdowns')}
+                            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all group"
+                        >
+                            <div className="bg-purple-100 p-3 rounded-lg group-hover:bg-purple-200 transition-colors">
+                                <FiTag className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-gray-900">Task Title Dropdowns</h3>
+                                <p className="text-sm text-gray-600">Configure dropdown vs manual entry per team</p>
                             </div>
                         </button>
 

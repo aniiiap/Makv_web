@@ -1310,3 +1310,155 @@ exports.sendPaySlip = async (req, res) => {
     res.status(500).json({ message: 'Error sending pay slip', error: error.message });
   }
 };
+
+// @desc    Auto-generate a bill/challan for a task when marked as done
+// @access  Internal Helper
+exports.autoGenerateBillForTask = async (task, user) => {
+  try {
+    if (!task) return null;
+
+    const clientId = task.client?._id || task.client;
+    let fixedAmount = Number(task.fixedAmount);
+
+    // If fixedAmount is not explicitly set on the task, look up in PredefinedTitle by title & subtitle
+    if ((!fixedAmount || fixedAmount <= 0) && task.title) {
+      try {
+        const TaskManagerPredefinedTitle = require('../models/taskManager.PredefinedTitle');
+        const escapedTitle = task.title.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const foundTitle = await TaskManagerPredefinedTitle.findOne({
+          title: { $regex: new RegExp('^' + escapedTitle + '$', 'i') }
+        });
+        if (foundTitle && Array.isArray(foundTitle.subtitles)) {
+          for (const s of foundTitle.subtitles) {
+            let sName = '';
+            let sAmt = 0;
+            if (typeof s === 'string') {
+              sName = s.trim();
+            } else if (s && typeof s === 'object') {
+              sName = (s.name || '').trim();
+              sAmt = Number(s.amount) || 0;
+            }
+            if (task.subtitle && sName.toLowerCase() === task.subtitle.trim().toLowerCase()) {
+              if (sAmt > 0) {
+                fixedAmount = sAmt;
+                await TaskManagerTask.findByIdAndUpdate(task._id, { fixedAmount, isFixed: true });
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Auto-Bill] Error resolving predefined amount:', e);
+      }
+    }
+
+    // Ensure a client is linked to generate a bill
+    if (!clientId) {
+      return null;
+    }
+
+    if (!fixedAmount || fixedAmount < 0) {
+      fixedAmount = 0;
+    }
+
+    // Prevent duplicate bill generation for the same task
+    const existingBill = await Bill.findOne({ taskId: task._id });
+    if (existingBill) {
+      console.log('[Auto-Bill] Bill already exists for task ' + task._id + ': ' + existingBill.invoiceNo);
+      return existingBill;
+    }
+
+    const clientDoc = await Client.findById(clientId);
+    if (!clientDoc) {
+      console.warn('[Auto-Bill] Client not found for ID ' + clientId);
+      return null;
+    }
+
+    // Sequential invoice number generation: MAKV/YYYY-MM/00X
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const prefix = 'MAKV/' + year + '-' + month + '/';
+
+    const latestBill = await Bill.findOne({
+      invoiceNo: { $regex: '^' + prefix }
+    }).sort({ invoiceNo: -1 });
+
+    let sequence = 1;
+    if (latestBill && latestBill.invoiceNo) {
+      const parts = latestBill.invoiceNo.split('/');
+      const lastSeq = parseInt(parts[2], 10);
+      if (!isNaN(lastSeq)) {
+        sequence = lastSeq + 1;
+      }
+    }
+    const formattedSequence = String(sequence).padStart(3, '0');
+    const invoiceNo = prefix + formattedSequence;
+
+    const isMaharashtra =
+      (clientDoc.state || '27').includes('27') ||
+      (clientDoc.state || '').toLowerCase().includes('maharashtra');
+    const itemDescription = task.subtitle ? task.title + ' - ' + task.subtitle : task.title;
+
+    const billData = {
+      invoiceNo,
+      date: currentDate,
+      buyerDetails: {
+        clientId: clientDoc._id,
+        name: clientDoc.name || clientDoc.companyName || 'Valued Client',
+        address:
+          clientDoc.address ||
+          [clientDoc.city, clientDoc.state, clientDoc.pincode].filter(Boolean).join(', ') ||
+          'N/A',
+        gstin: clientDoc.gstin || '',
+        stateCode: clientDoc.state || (isMaharashtra ? '27' : ''),
+      },
+      items: [
+        {
+          description: itemDescription,
+          hsn: '9983',
+          amount: fixedAmount,
+          taxRate: 0,
+        },
+      ],
+      taxDetails: {
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        isMaharashtra,
+        totalAmount: fixedAmount,
+        taxableAmount: fixedAmount,
+      },
+      amountInWords: 'Rupees ' + Math.floor(fixedAmount) + ' Only',
+      taxAmountInWords: 'INR 0 Only',
+      generatedBy: user?._id || user?.id || task.createdBy,
+      team: task.team?._id || task.team || null,
+      taskId: task._id,
+      sentToEmail: clientDoc.email || 'billing@example.com',
+      isDone: false,
+      isSent: false, // Generated only, not sent
+    };
+
+    // Safely attempt PDF generation & Cloudinary upload
+    try {
+      const pdfBuffer = await generatePDF(billData);
+      const safeInvoiceNo = invoiceNo.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const uploadResult = await uploadToCloudinary(pdfBuffer, safeInvoiceNo);
+      if (uploadResult && uploadResult.secure_url) {
+        billData.pdfUrl = uploadResult.secure_url;
+      }
+    } catch (pdfErr) {
+      console.warn('[Auto-Bill] PDF/Cloudinary upload warning:', pdfErr.message);
+    }
+
+    const newBill = new Bill(billData);
+    await newBill.save();
+
+    await TaskManagerTask.findByIdAndUpdate(task._id, { isBillable: true });
+    console.log('[Auto-Bill] Auto-generated challan/invoice ' + invoiceNo + ' for client ' + clientDoc.name);
+    return newBill;
+  } catch (err) {
+    console.error('[Auto-Bill] Error in autoGenerateBillForTask:', err);
+    return null;
+  }
+};

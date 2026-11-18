@@ -62,7 +62,7 @@ const CompletedTasks = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const params = { status: 'done' };
+      const params = { status: 'done', excludeChecked: 'true' };
       if (filters.team) params.team = filters.team;
       
       // Admin/Owner can see all, regular members see their own
@@ -85,6 +85,24 @@ const CompletedTasks = () => {
       console.error('Error fetching completed tasks:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleChecked = async (task) => {
+    if (user?.role !== 'admin') return;
+    const confirmCheck = window.confirm(
+      `Mark "${task.title}" as Checked?\nIt will be moved to the Checked Tasks page.`
+    );
+    if (!confirmCheck) return;
+
+    try {
+      setTasks(prev => prev.filter(t => t._id !== task._id));
+      await api.patch(`/tasks/${task._id}/toggle-checked`);
+      alert(`"${task.title}" marked as checked and moved to Checked Tasks.`);
+    } catch (err) {
+      console.error('Error checking task:', err);
+      alert(err.response?.data?.message || 'Failed to mark task as checked');
+      fetchTasks();
     }
   };
 
@@ -320,11 +338,33 @@ const CompletedTasks = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-left sm:text-right">
-                  <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mb-1`}>Completed on</div>
-                  <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {new Date(task.updatedAt).toLocaleDateString()}
+                <div className="text-left sm:text-right flex flex-col items-start sm:items-end justify-between gap-2">
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mb-1`}>Completed on</div>
+                    <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {new Date(task.updatedAt).toLocaleDateString()}
+                    </div>
                   </div>
+                  {user?.role === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleChecked(task);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                        isDark
+                          ? 'bg-gray-700 text-gray-200 border-gray-600 hover:border-emerald-500 hover:text-emerald-300'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                      }`}
+                      title="Admin Check: Mark as Checked and move to Checked Tasks"
+                    >
+                      <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
+                        ✓
+                      </span>
+                      <span>Mark Checked</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

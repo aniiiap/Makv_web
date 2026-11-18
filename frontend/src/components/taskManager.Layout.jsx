@@ -11,7 +11,7 @@ import {
   FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, 
   FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, 
   FiShield, FiBriefcase, FiPause, FiPlay, FiClock 
-} from 'react-icons/fi';
+, FiTag } from 'react-icons/fi';
 
 
 // Triggering reload for DailyProgress widget
@@ -126,6 +126,7 @@ const Layout = ({ children }) => {
     { name: 'Tasks', href: '/taskflow/tasks', icon: FiCheckSquare },
     { name: 'My Daily Work', href: '/taskflow/my-daily-work', icon: FiClock },
     { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },
+    { name: 'Checked Tasks', href: '/taskflow/tasks/checked', icon: FiCheckSquare },
     ...(canAccessBills ? [{ name: 'Challan & Invoice', href: '/taskflow/bills', icon: FiFileText }] : []),
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },
@@ -133,6 +134,7 @@ const Layout = ({ children }) => {
 
   if (user?.role === 'admin') {
     navigation.push(
+      { name: 'Task Titles', href: '/taskflow/admin/predefined-titles', icon: FiTag },
       { name: 'Pay Slips', href: '/taskflow/payslips', icon: FiFileText },
       { name: 'Admin Dashboard', href: '/taskflow/admin/dashboard', icon: FiShield }
     );
@@ -258,9 +260,9 @@ const Layout = ({ children }) => {
         className={`fixed inset-y-0 left-0 z-30 w-64 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full max-h-screen overflow-hidden">
           {/* Logo */}
-          <div className={`flex items-center justify-between h-16 px-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className={`flex items-center justify-between h-16 px-6 border-b flex-shrink-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <h1 className="text-2xl font-bold text-primary-600">TaskFlow</h1>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -271,7 +273,7 @@ const Layout = ({ children }) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-4 py-3 space-y-1 overflow-y-auto min-h-0">
             {navigation.map((item) => {
               const IconComponent = item.icon;
               const requiresAuth = item.href !== '/taskflow/dashboard';
@@ -306,10 +308,12 @@ const Layout = ({ children }) => {
           </nav>
 
           {/* Active Timer Widget */}
-          <SidebarTimer />
+          <div className="flex-shrink-0">
+            <SidebarTimer />
+          </div>
 
           {/* User section */}
-          <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className={`p-4 border-t flex-shrink-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             {isAuthenticated && user ? (
               <div className="relative">
                 {profileDropdownOpen && (
