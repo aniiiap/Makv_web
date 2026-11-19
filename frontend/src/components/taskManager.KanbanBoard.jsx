@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiDollarSign, FiBriefcase } from 'react-icons/fi';
+import { FiMoreVertical, FiCalendar, FiUser, FiTag, FiEdit2, FiTrash2, FiX, FiBriefcase } from 'react-icons/fi';
 import api from '../utils/taskManager.api';
 
 const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask, hideDone = false, isAdmin = false, onToggleChecked = null }) => {
@@ -151,17 +151,6 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                     >
                       {task.priority}
                     </span>
-                    {task.isBillable ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                        <FiDollarSign className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                        Billable
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">
-                        <FiDollarSign className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-50" />
-                        Non-Billable
-                      </span>
-                    )}
                     {task.tags && task.tags.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
                         <FiTag className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
@@ -176,31 +165,34 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                    {task.assignedTo && (
+                  <div className="flex items-center justify-between text-xs text-gray-500 mt-2.5">
+                    {task.assignedTo ? (
                       <div className="flex items-center gap-1">
-                        <FiUser className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                        <span className="truncate max-w-[60px] sm:max-w-[100px]">
+                        <FiUser className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span className="truncate max-w-[90px] sm:max-w-[120px] text-gray-600 dark:text-gray-300">
                           {task.assignedTo.name || 'Unassigned'}
                         </span>
                       </div>
+                    ) : (
+                      <span className="text-[11px] text-gray-400">Unassigned</span>
                     )}
-                    <div className="flex items-center gap-2 text-right ml-auto">
-                      {task.createdAt && (
-                        <span className="text-xs">
-                          Created at: {new Date(task.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                    {task.dueDate && (
+                      <div className="flex items-center gap-1 text-gray-500 ml-auto">
+                        <FiCalendar className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span className="text-xs whitespace-nowrap">
+                          {new Date(task.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </span>
-                      )}
-                      {task.dueDate && (
-                        <div className="flex items-center gap-1">
-                          <FiCalendar className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                          <span className="text-xs">
-                            {new Date(task.dueDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
+
+                  {task.createdAt && (
+                    <div className="mt-2 pt-1.5 border-t border-gray-100 dark:border-gray-700/50 text-[11px] text-gray-400 flex items-center justify-between">
+                      <span className="whitespace-nowrap">
+                        Created: {new Date(task.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
               {columnTasks.length === 0 && (

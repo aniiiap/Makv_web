@@ -1726,7 +1726,7 @@ exports.addSubtask = async (req, res, next) => {
       }
     }
 
-    task.subtasks.push({ title, completed: false });
+    task.subtasks.push({ title, completed: false, createdAt: new Date() });
     await task.save();
 
     // Log activity

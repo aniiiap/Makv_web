@@ -354,9 +354,6 @@ const ClientDetail = () => {
                                                         <FiClock className="w-3 h-3" /> {formatDuration(task.timeSpent)}
                                                     </span>
                                                 )}
-                                                {task.isBillable && (
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>Billable</span>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -472,11 +469,6 @@ const ClientDetail = () => {
                                                 <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${getPriorityColor(task.priority)}`}>
                                                     {task.priority}
                                                 </span>
-                                                {task.isBillable && (
-                                                    <span className={`px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
-                                                        Billable
-                                                    </span>
-                                                )}
                                                 {task.assignedTo && (
                                                     <span className={`flex items-center gap-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                                         <FiUser className="w-3 h-3" /> {task.assignedTo.name}
@@ -565,25 +557,6 @@ const ClientDetail = () => {
                                     onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'}`}
                                 />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="billable"
-                                    checked={newTask.isBillable}
-                                    onChange={(e) => {
-                                        e.preventDefault();
-                                        if (newTask.isBillable) {
-                                            toast.error('Task is already marked as billable. Bills cannot be un-generated here.');
-                                            return;
-                                        }
-                                        if (window.confirm('A bill must be generated to mark this task as billable. Redirect to Bill Generator?')) {
-                                            autoSaveTaskAndRedirectToBill(e);
-                                        }
-                                    }}
-                                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                />
-                                <label htmlFor="billable" className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Billable Task</label>
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button

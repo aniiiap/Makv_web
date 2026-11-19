@@ -1527,17 +1527,6 @@ const Tasks = ({ openCreate = false }) => {
                           ₹{task.fixedAmount}
                         </span>
                       )}
-                      {task.isBillable ? (
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'}`}>
-                          <FiDollarSign className="w-3 h-3" />
-                          Billable
-                        </span>
-                      ) : (
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                          <FiDollarSign className="w-3 h-3 opacity-50" />
-                          Non-Billable
-                        </span>
-                      )}
                       {task.team ? (
                         <Link
                           to={`/taskflow/teams/${task.team._id || task.team}`}
@@ -1599,7 +1588,7 @@ const Tasks = ({ openCreate = false }) => {
                       </div>
                       {task.createdAt && (
                         <span className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                          Created at: {new Date(task.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                          Created: {new Date(task.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </span>
                       )}
                     </div>
@@ -1965,37 +1954,6 @@ const Tasks = ({ openCreate = false }) => {
                       placeholder="tag1, tag2, tag3"
                     />
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-6 col-span-full pt-2">
-                    
-                    <label className={`flex items-center gap-2 cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      <input
-                        type="checkbox"
-                        checked={newTask.isBillable}
-                        onChange={(e) => {
-                          e.preventDefault(); // Intercept default check
-                          if (newTask.isBillable) {
-                            toast.error("Task is already marked as billable. Bills cannot be un-generated here.");
-                            return;
-                          }
-
-                          // Custom Modal prompt
-                          let tId = null;
-                          let isNew = true;
-                          if (editingTask && editingTask._id) {
-                            tId = editingTask._id;
-                            isNew = false;
-                          } else if (editingTask && typeof editingTask === 'string') {
-                            tId = editingTask;
-                            isNew = false;
-                          }
-                          setShowBillTypeModal({ isOpen: true, taskId: tId, isNew: isNew, event: e });
-                        }}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-sm font-medium">Billable Task</span>
-                    </label>
-                  </div>
                 </div>
                 <div className="flex space-x-3 pt-3">
                   <button
@@ -2149,26 +2107,42 @@ const Tasks = ({ openCreate = false }) => {
                     currentTaskDetails.subtasks.map((subtask) => (
                       <div
                         key={subtask._id}
-                        className={`flex items-center gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                        className={`flex items-start gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
                       >
                         <button
+                          type="button"
                           onClick={() => handleToggleSubtask(subtask._id, subtask.completed)}
-                          className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${subtask.completed
+                          className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center transition-colors ${subtask.completed
                             ? 'bg-primary-600 border-primary-600 text-white'
                             : isDark ? 'border-gray-500' : 'border-gray-300'
                             }`}
                         >
                           {subtask.completed && <FiCheckCircle className="w-4 h-4" />}
                         </button>
-                        <span
-                          className={`flex-1 ${subtask.completed ? 'line-through opacity-60' : ''} ${isDark ? 'text-gray-300' : 'text-gray-900'
-                            }`}
-                        >
-                          {subtask.title}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm break-words ${subtask.completed ? 'line-through opacity-60' : ''} ${isDark ? 'text-gray-200' : 'text-gray-900'
+                              }`}
+                          >
+                            {subtask.title}
+                          </p>
+                          {(subtask.createdAt || currentTaskDetails?.createdAt) && (
+                            <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {new Date(subtask.createdAt || currentTaskDetails.createdAt).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              })}
+                            </span>
+                          )}
+                        </div>
                         <button
+                          type="button"
                           onClick={() => handleDeleteSubtask(subtask._id)}
-                          className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 transition-colors"
+                          className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 transition-colors mt-0.5"
                         >
                           <FiTrash2 className="w-4 h-4" />
                         </button>

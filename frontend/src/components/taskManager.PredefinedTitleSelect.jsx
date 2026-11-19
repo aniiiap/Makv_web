@@ -31,17 +31,12 @@ const PredefinedTitleSelect = ({
 
   // Sync custom title mode
   useEffect(() => {
-    if (!titleValue) {
-      setIsCustomTitle(false);
-      return;
-    }
+    if (!titleValue) return;
     const matched = predefinedTitles.some(
       (t) => t.title?.toLowerCase() === titleValue.toLowerCase()
     );
     if (!matched && titleValue.trim() !== '') {
       setIsCustomTitle(true);
-    } else {
-      setIsCustomTitle(false);
     }
   }, [titleValue, predefinedTitles]);
 
@@ -56,17 +51,12 @@ const PredefinedTitleSelect = ({
 
   // Sync custom subtitle mode
   useEffect(() => {
-    if (!subtitleValue) {
-      setIsCustomSubtitle(false);
-      return;
-    }
+    if (!subtitleValue) return;
     const matched = linkedSubtitles.some(
       (s) => s.name?.toLowerCase() === subtitleValue.toLowerCase()
     );
     if (!matched && subtitleValue.trim() !== '') {
       setIsCustomSubtitle(true);
-    } else {
-      setIsCustomSubtitle(false);
     }
   }, [subtitleValue, linkedSubtitles]);
 
@@ -106,12 +96,13 @@ const PredefinedTitleSelect = ({
           <div className="relative">
             <input
               type="text"
+              autoFocus
               required
               disabled={disabled}
               value={titleValue}
               onChange={(e) => onTitleChange(e.target.value)}
               placeholder="Enter custom task title"
-              className={`w-full px-3 py-2 pr-20 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm ${
+              className={`w-full px-3 py-2 pr-28 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm ${
                 isDark
                   ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                   : 'border-gray-300 bg-white text-gray-900'
@@ -194,6 +185,7 @@ const PredefinedTitleSelect = ({
                           onClick={() => {
                             onTitleChange(item.title);
                             onSubtitleChange('', 0);
+                            setIsCustomSubtitle(false);
                             setIsTitleOpen(false);
                             setTitleSearch('');
                           }}
@@ -242,18 +234,19 @@ const PredefinedTitleSelect = ({
           <div className="relative">
             <input
               type="text"
+              autoFocus
               required
               disabled={disabled}
               value={subtitleValue}
               onChange={(e) => onSubtitleChange(e.target.value)}
               placeholder="Enter custom sub-title"
-              className={`w-full px-3 py-2 pr-20 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm ${
+              className={`w-full px-3 py-2 pr-28 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm ${
                 isDark
                   ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                   : 'border-gray-300 bg-white text-gray-900'
               } disabled:cursor-not-allowed disabled:opacity-60`}
             />
-            {!disabled && linkedSubtitles.length > 0 && (
+            {!disabled && (
               <button
                 type="button"
                 onClick={() => {
