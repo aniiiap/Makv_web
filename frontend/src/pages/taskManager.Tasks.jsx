@@ -414,6 +414,7 @@ const Tasks = ({ openCreate = false }) => {
   const resetTaskForm = () => {
     setNewTask({
       title: '',
+      subtitle: '',
       description: '',
       team: '',
       client: '',
@@ -446,21 +447,32 @@ const Tasks = ({ openCreate = false }) => {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
-    if (!newTask.client) {
-      alert('Please select a Client');
-      return;
-    }
-    if (!newTask.subtitle || !newTask.subtitle.trim()) {
-      alert('Please select or enter a Sub-title');
-      return;
-    }
-    if (!newTask.description || !newTask.description.trim()) {
-      alert('Please enter a Description');
-      return;
-    }
-    if (countWords(newTask.description) > 15) {
-      alert('Description cannot exceed 15 words');
-      return;
+    if (usePredefinedTitles) {
+      if (!newTask.title || !newTask.title.trim()) {
+        alert('Please select a Task Title');
+        return;
+      }
+      if (!newTask.subtitle || !newTask.subtitle.trim()) {
+        alert('Please select or enter a Sub-title');
+        return;
+      }
+      if (!newTask.client) {
+        alert('Please select a Client');
+        return;
+      }
+      if (!newTask.description || !newTask.description.trim()) {
+        alert('Please enter a Description');
+        return;
+      }
+      if (countWords(newTask.description) > 15) {
+        alert('Description cannot exceed 15 words');
+        return;
+      }
+    } else {
+      if (!newTask.title || !newTask.title.trim()) {
+        alert('Please enter a Task Title');
+        return;
+      }
     }
     try {
       setIsSavingTask(true);
@@ -475,20 +487,21 @@ const Tasks = ({ openCreate = false }) => {
         setIsSavingTask(false);
         return;
       }
+      const isClientAvailable = usePredefinedTitles || canSelectClient;
       const taskData = {
         ...newTask,
         team: newTask.team || null, // Allow null for personal tasks
-        client: newTask.client || null,
-        assignedTo: newTask.assignedTo || ((newTask.team || newTask.client) ? null : user?.id), // Default to self for personal tasks
+        client: isClientAvailable && newTask.client ? newTask.client : null,
+        assignedTo: newTask.assignedTo || ((newTask.team || (isClientAvailable && newTask.client)) ? null : user?.id), // Default to self for personal tasks
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
-        fixedAmount: (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
-        isFixed: parsedAmount !== null && parsedAmount > 0,
+        fixedAmount: (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
+        isFixed: Boolean(newTask.isFixed),
       };
       await api.post('/tasks', taskData);
       closeTaskModal();
       fetchTasks();
     } catch (error) {
-      alert(error.message || 'Failed to create task');
+      alert(error.response?.data?.message || error.message || 'Failed to create task');
     } finally {
       setIsSavingTask(false);
     }
@@ -804,19 +817,20 @@ const Tasks = ({ openCreate = false }) => {
     const canEditFixedDetails = isGlobalAdmin || canManageEditingFixedTask();
     const canEditRestricted = isGlobalAdmin || (canEditFixedDetails && (!editingTask || isPersonal || isAdminOrOwner));
 
+    const isClientAvailable = usePredefinedTitles || canSelectClient;
     const taskData = {
       ...newTask,
       team: newTask.team || null,
-      client: newTask.client || null,
+      client: isClientAvailable && newTask.client ? newTask.client : null,
       assignedTo: newTask.assignedTo || null,
       tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
-      isBillable: overrideIsBillable !== undefined ? overrideIsBillable : newTask.isBillable
+      isBillable: overrideIsBillable !== undefined ? overrideIsBillable : newTask.isBillable,
+      isFixed: Boolean(newTask.isFixed),
     };
 
     const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
     const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
-    taskData.fixedAmount = (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
-    taskData.isFixed = taskData.fixedAmount !== null && taskData.fixedAmount > 0;
+    taskData.fixedAmount = (taskData.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
 
     if (!isGlobalAdmin) {
       if (editingTask && editingFixedTask && !canEditFixedDetails) {
@@ -848,38 +862,45 @@ const Tasks = ({ openCreate = false }) => {
     if (isSavingTask) return;
 
     // Check if task compulsory requirements are met
-    if (!newTask.title.trim()) {
-      toast.error("Please enter a Task Title");
-      return;
-    }
-    if (!newTask.client) {
-      toast.error("Please select a Client");
-      return;
-    }
-    if (!newTask.subtitle || !newTask.subtitle.trim()) {
-      toast.error("Please select or enter a Sub-title");
-      return;
-    }
-    if (!newTask.description || !newTask.description.trim()) {
-      toast.error("Please enter a Description");
-      return;
+    if (usePredefinedTitles) {
+      if (!newTask.title || !newTask.title.trim()) {
+        toast.error("Please enter a Task Title");
+        return;
+      }
+      if (!newTask.subtitle || !newTask.subtitle.trim()) {
+        toast.error("Please select or enter a Sub-title");
+        return;
+      }
+      if (!newTask.client) {
+        toast.error("Please select a Client");
+        return;
+      }
+      if (!newTask.description || !newTask.description.trim()) {
+        toast.error("Please enter a Description");
+        return;
+      }
+    } else {
+      if (!newTask.title || !newTask.title.trim()) {
+        toast.error("Please enter a Task Title");
+        return;
+      }
     }
 
     try {
       setIsSavingTask(true);
+      const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
+      const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
+      const isClientAvailable = usePredefinedTitles || canSelectClient;
       const taskData = {
         ...newTask,
         team: newTask.team || null,
-        client: newTask.client || null,
+        client: isClientAvailable && newTask.client ? newTask.client : null,
         assignedTo: newTask.assignedTo || null,
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
-        isBillable: false // Ensure it's false initially, the backend marks it true upon bill generation
+        isBillable: false, // Ensure it's false initially, the backend marks it true upon bill generation
+        fixedAmount: (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
+        isFixed: Boolean(newTask.isFixed),
       };
-
-      const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
-      const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
-      taskData.fixedAmount = (newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
-      taskData.isFixed = taskData.fixedAmount !== null && taskData.fixedAmount > 0;
 
       const response = await api.post('/tasks', taskData);
 
@@ -921,21 +942,32 @@ const Tasks = ({ openCreate = false }) => {
   const handleUpdateTask = async (e) => {
     e.preventDefault();
     if (isSavingTask) return;
-    if (!newTask.client) {
-      alert('Please select a Client');
-      return;
-    }
-    if (!newTask.subtitle || !newTask.subtitle.trim()) {
-      alert('Please select or enter a Sub-title');
-      return;
-    }
-    if (!newTask.description || !newTask.description.trim()) {
-      alert('Please enter a Description');
-      return;
-    }
-    if (countWords(newTask.description) > 15) {
-      alert('Description cannot exceed 15 words');
-      return;
+    if (usePredefinedTitles) {
+      if (!newTask.title || !newTask.title.trim()) {
+        alert('Please select a Task Title');
+        return;
+      }
+      if (!newTask.subtitle || !newTask.subtitle.trim()) {
+        alert('Please select or enter a Sub-title');
+        return;
+      }
+      if (!newTask.client) {
+        alert('Please select a Client');
+        return;
+      }
+      if (!newTask.description || !newTask.description.trim()) {
+        alert('Please enter a Description');
+        return;
+      }
+      if (countWords(newTask.description) > 15) {
+        alert('Description cannot exceed 15 words');
+        return;
+      }
+    } else {
+      if (!newTask.title || !newTask.title.trim()) {
+        alert('Please enter a Task Title');
+        return;
+      }
     }
     try {
       setIsSavingTask(true);
@@ -1134,30 +1166,29 @@ const Tasks = ({ openCreate = false }) => {
   const canEditSensitive = isGlobalAdmin || (!isTaskFixedLocked && (!editingTask || isPersonalTask || isTeamAdminOrOwner));
 
   const hasTeamClientsAccess = (teamId) => {
-    if (!teamId) return canAccessClients;
-    if (user?.role === 'admin') return true;
-    const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
+    const rawId = (teamId?._id || teamId?.id || teamId)?.toString();
+    if (!rawId) return canAccessClients;
+    const teamObj = teams.find((t) => (t._id || t.id)?.toString() === rawId);
     if (!teamObj || !teamObj.clientsEnabled) return false;
+    if (user?.role === 'admin' || user?.role === 'master') return true;
     const userId = (user?._id || user?.id)?.toString();
     const member = teamObj.members?.find((m) => (m.user?._id || m.user)?.toString() === userId);
     return member?.clientsAccess === true;
   };
 
   const hasTeamPredefinedTitles = (teamId) => {
-    if (teamId) {
-      const teamObj = teams.find((t) => (t._id || t.id)?.toString() === teamId.toString());
+    const rawId = (teamId?._id || teamId?.id || teamId)?.toString();
+    if (rawId) {
+      const teamObj = teams.find((t) => (t._id || t.id)?.toString() === rawId);
       if (teamObj) return Boolean(teamObj.predefinedTitlesEnabled);
+      return false;
     }
-    // If no team is selected yet in modal (or personal/client task):
-    // For admin, always enable standard title dropdown
-    if (user?.role === 'admin') return true;
-    // For regular users, enable if any team has predefinedTitlesEnabled turned on
-    return teams.some((t) => Boolean(t.predefinedTitlesEnabled));
+    return false;
   };
 
   const canSelectClient = hasTeamClientsAccess(newTask.team);
   const canFilterByClient = hasTeamClientsAccess(filters.team);
-  const usePredefinedTitles = isGlobalAdmin || hasTeamPredefinedTitles(newTask.team);
+  const usePredefinedTitles = hasTeamPredefinedTitles(newTask.team);
 
 
 
@@ -1709,13 +1740,13 @@ const Tasks = ({ openCreate = false }) => {
                     <span>This is a fixed task created by an admin. Core details and fixed amount cannot be modified.</span>
                   </div>
                 )}
-                {canSelectClient && (
+                {(usePredefinedTitles || canSelectClient) && (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Client *
+                        Client{usePredefinedTitles ? ' *' : ''}
                       </label>
-                      {isGlobalAdmin && canSelectClient && !isTaskFixedLocked && (
+                      {isGlobalAdmin && !isTaskFixedLocked && (
                         <button
                           type="button"
                           onClick={() => setShowAddClientModal(true)}
@@ -1726,7 +1757,7 @@ const Tasks = ({ openCreate = false }) => {
                       )}
                     </div>
                     <select
-                      required
+                      required={usePredefinedTitles}
                       value={newTask.client}
                       disabled={isTaskFixedLocked}
                       onChange={(e) => {
@@ -1738,7 +1769,7 @@ const Tasks = ({ openCreate = false }) => {
                       }}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60 text-sm ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
                     >
-                      <option value="">-- Select a Client --</option>
+                      <option value="">{usePredefinedTitles ? '-- Select a Client * --' : '-- Select a Client (Optional) --'}</option>
                       {clients.map((c) => (
                         <option key={c._id} value={c._id}>
                           {c.name}{c.companyName ? ` (${c.companyName})` : ''}{c.clientId ? ` - ${c.clientId}` : ''}
@@ -1759,9 +1790,8 @@ const Tasks = ({ openCreate = false }) => {
                       setNewTask((prev) => ({
                         ...prev,
                         subtitle: val,
-                        ...(amt !== undefined && amt !== null && Number(amt) > 0 ? {
+                        ...(amt !== undefined && amt !== null && amt !== '' ? {
                           fixedAmount: String(amt),
-                          isFixed: true,
                         } : {}),
                       }));
                     }}
@@ -1789,18 +1819,17 @@ const Tasks = ({ openCreate = false }) => {
                     </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Sub-title *
+                        Sub-title
                       </label>
                       <input
                         type="text"
-                        required
                         value={newTask.subtitle || ''}
                         onChange={(e) =>
                           setNewTask({ ...newTask, subtitle: e.target.value })
                         }
                         disabled={isTaskFixedLocked}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
-                        placeholder="Enter task sub-title"
+                        placeholder="Enter task sub-title (optional)"
                       />
                     </div>
                   </div>
@@ -1810,33 +1839,37 @@ const Tasks = ({ openCreate = false }) => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Description *
+                      Description{usePredefinedTitles ? ' *' : ''}
                     </label>
-                    <span className={`text-xs ${
-                      countWords(newTask.description) >= 15
-                        ? 'text-amber-500 font-semibold'
-                        : isDark ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {countWords(newTask.description)} / 15 words
-                    </span>
+                    {usePredefinedTitles && (
+                      <span className={`text-xs ${
+                        countWords(newTask.description) >= 15
+                          ? 'text-amber-500 font-semibold'
+                          : isDark ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        {countWords(newTask.description)} / 15 words
+                      </span>
+                    )}
                   </div>
                   <textarea
-                    required
+                    required={usePredefinedTitles}
                     value={newTask.description}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const words = val.trim().split(/\s+/).filter(Boolean);
-                      if (words.length > 15) {
-                        const trimmed = words.slice(0, 15).join(' ');
-                        setNewTask((prev) => ({ ...prev, description: trimmed }));
-                        return;
+                      if (usePredefinedTitles) {
+                        const words = val.trim().split(/\s+/).filter(Boolean);
+                        if (words.length > 15) {
+                          const trimmed = words.slice(0, 15).join(' ');
+                          setNewTask((prev) => ({ ...prev, description: trimmed }));
+                          return;
+                        }
                       }
                       setNewTask((prev) => ({ ...prev, description: val }));
                     }}
                     disabled={isTaskFixedLocked}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'}`}
-                    rows="2"
-                    placeholder="Enter task description (max 15 words)"
+                    rows={usePredefinedTitles ? '2' : '3'}
+                    placeholder={usePredefinedTitles ? 'Enter task description (max 15 words)' : 'Enter task description'}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">

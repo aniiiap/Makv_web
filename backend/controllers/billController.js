@@ -1352,7 +1352,7 @@ exports.autoGenerateBillForTask = async (task, user) => {
             if (task.subtitle && sName.toLowerCase() === task.subtitle.trim().toLowerCase()) {
               if (sAmt > 0) {
                 fixedAmount = sAmt;
-                await TaskManagerTask.findByIdAndUpdate(task._id, { fixedAmount, isFixed: true });
+                await TaskManagerTask.findByIdAndUpdate(task._id, { fixedAmount });
                 break;
               }
             }
