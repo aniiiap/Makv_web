@@ -24,7 +24,6 @@ export const SocketProvider = ({ children }) => {
       });
 
       newSocket.on('connect', () => {
-        console.log('Socket connected');
         newSocket.emit('join-user-room', user.id);
       });
 

@@ -8,16 +8,10 @@ let API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5004/api';
 // CRITICAL FIX: Ensure we use port 5004, not 5005
 // Replace port 5005 with 5004 if somehow env var has wrong port
 if (API_BASE_URL.includes(':5005')) {
-  console.warn('⚠️ Detected port 5005 in API URL, fixing to 5004...');
   API_BASE_URL = API_BASE_URL.replace(':5005', ':5004');
 }
 
 const TASK_MANAGER_API_URL = `${API_BASE_URL}/taskflow`;
-
-// Debug: Log the API URL to console
-console.log('🔗 TaskFlow API URL:', TASK_MANAGER_API_URL);
-console.log('🔗 VITE_API_URL:', import.meta.env.VITE_API_URL);
-console.log('🔗 Final API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: TASK_MANAGER_API_URL,

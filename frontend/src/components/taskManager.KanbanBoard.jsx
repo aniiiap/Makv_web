@@ -4,6 +4,7 @@ import api from '../utils/taskManager.api';
 
 const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTask, canDeleteTask, hideDone = false, isAdmin = false, onToggleChecked = null }) => {
   const [draggedTask, setDraggedTask] = useState(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const allColumns = [
     { id: 'todo', title: 'To Do', color: 'bg-gray-100' },
@@ -31,12 +32,16 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
 
   const handleDrop = async (e, newStatus) => {
     e.preventDefault();
+    if (isUpdatingStatus) return;
     if (draggedTask && draggedTask.status !== newStatus) {
       try {
+        setIsUpdatingStatus(true);
         await api.put(`/tasks/${draggedTask._id}`, { status: newStatus });
-        onTaskUpdate();
+        await onTaskUpdate();
       } catch (error) {
         console.error('Error updating task status:', error);
+      } finally {
+        setIsUpdatingStatus(false);
       }
     }
     setDraggedTask(null);
@@ -204,6 +209,17 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
           </div>
         );
       })}
+      {isUpdatingStatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 max-w-sm mx-4 text-center border border-gray-100 dark:border-gray-700">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
+            <div>
+              <h4 className="font-bold text-base text-gray-900 dark:text-white">Updating Task Status</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generating invoice/challan... Please wait.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

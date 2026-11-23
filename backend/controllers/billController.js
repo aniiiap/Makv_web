@@ -1311,12 +1311,23 @@ exports.sendPaySlip = async (req, res) => {
   }
 };
 
+// In-memory lock to prevent race conditions during concurrent auto-bill generation
+const generatingTaskBills = new Set();
+
 // @desc    Auto-generate a bill/challan for a task when marked as done
 // @access  Internal Helper
 exports.autoGenerateBillForTask = async (task, user) => {
-  try {
-    if (!task) return null;
+  if (!task || !task._id) return null;
+  const taskIdStr = task._id.toString();
 
+  // Prevent concurrent duplicate executions for the same task
+  if (generatingTaskBills.has(taskIdStr)) {
+    console.log(`[Auto-Bill] Bill generation already in progress for task ${taskIdStr}`);
+    return null;
+  }
+  generatingTaskBills.add(taskIdStr);
+
+  try {
     const clientId = task.client?._id || task.client;
     let fixedAmount = Number(task.fixedAmount);
 
@@ -1460,5 +1471,7 @@ exports.autoGenerateBillForTask = async (task, user) => {
   } catch (err) {
     console.error('[Auto-Bill] Error in autoGenerateBillForTask:', err);
     return null;
+  } finally {
+    generatingTaskBills.delete(taskIdStr);
   }
 };

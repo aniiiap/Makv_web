@@ -54,16 +54,13 @@ export const TaskManagerAuthProvider = ({ children }) => {
 
   const googleLogin = async (tokenId, inviteToken = null) => {
     try {
-      console.log('🔐 Attempting Google login...');
-      console.log('🔗 API Base URL:', import.meta.env.VITE_API_URL || 'http://localhost:5004/api');
       const response = await api.post('/auth/google', { tokenId, inviteToken });
-      console.log('✅ Google login successful:', response);
       localStorage.setItem('taskManagerToken', response.token);
       localStorage.setItem('taskManagerUser', JSON.stringify(response.user));
       setUser(response.user);
       return response;
     } catch (error) {
-      console.error('❌ Google login error:', error);
+      console.error('Google login error:', error);
       throw error;
     }
   };

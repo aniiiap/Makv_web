@@ -16,6 +16,8 @@ import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 const Tasks = ({ openCreate = false }) => {
+  const { user } = useTaskManagerAuth();
+  const isGlobalAdmin = user?.role === 'admin' || user?.role === 'master';
   const [tasks, setTasks] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,8 @@ const Tasks = ({ openCreate = false }) => {
   const [editingFixedTask, setEditingFixedTask] = useState(false);
   const [editingFixedTeamId, setEditingFixedTeamId] = useState('');
   const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [updatingTaskStatusId, setUpdatingTaskStatusId] = useState(null);
+  const [isCompletingTask, setIsCompletingTask] = useState(false);
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [newClientData, setNewClientData] = useState({
     name: '',
@@ -149,7 +153,6 @@ const Tasks = ({ openCreate = false }) => {
   });
   const [searchText, setSearchText] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useTaskManagerAuth();
   const navigate = useNavigate();
 
   const [newTask, setNewTask] = useState({
@@ -335,7 +338,6 @@ const Tasks = ({ openCreate = false }) => {
       const filteredTeam = teams.find(t => t._id === filters.team);
       const memberInFilteredTeam = filteredTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
       const isFilteredTeamAdminOrOwner = ['admin', 'owner'].includes(memberInFilteredTeam?.role);
-      const isGlobalAdmin = user?.role === 'admin';
       
       const isAnyTeamAdmin = teams.some(t => t.members.some(m => ((m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id) && ['admin', 'owner'].includes(m.role)));
       const userHasFullVisibility = isGlobalAdmin || isFilteredTeamAdminOrOwner || (filters.team ? isFilteredTeamAdminOrOwner : isAnyTeamAdmin);
@@ -493,11 +495,18 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
+    if (updatingTaskStatusId) return;
+    const isDone = newStatus === 'done';
+    setUpdatingTaskStatusId(taskId);
+    if (isDone) setIsCompletingTask(true);
     try {
       await api.put(`/tasks/${taskId}`, { status: newStatus });
-      fetchTasks();
+      await fetchTasks();
     } catch (error) {
       alert(error.message || 'Failed to update task');
+    } finally {
+      setUpdatingTaskStatusId(null);
+      if (isDone) setIsCompletingTask(false);
     }
   };
 
@@ -790,7 +799,6 @@ const Tasks = ({ openCreate = false }) => {
     const currentTeamObj = teams.find(t => t._id === newTask.team);
     const currentMember = currentTeamObj?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
     const userRole = currentMember?.role || 'member';
-    const isGlobalAdmin = user?.role === 'admin';
     const isAdminOrOwner = ['admin', 'owner'].includes(userRole) || isGlobalAdmin;
     const isPersonal = !newTask.team;
     const canEditFixedDetails = isGlobalAdmin || canManageEditingFixedTask();
@@ -1120,7 +1128,6 @@ const Tasks = ({ openCreate = false }) => {
   const currentTeam = teams.find(t => t._id === newTask.team);
   const currentUserMember = currentTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
   const userRoleInTeam = currentUserMember?.role || 'member';
-  const isGlobalAdmin = user?.role === 'admin';
   const isTaskFixedLocked = Boolean(editingTask && editingFixedTask && !canManageEditingFixedTask());
   const isTeamAdminOrOwner = ['admin', 'owner'].includes(userRoleInTeam) || isGlobalAdmin;
   const isPersonalTask = !newTask.team;
@@ -1496,10 +1503,13 @@ const Tasks = ({ openCreate = false }) => {
                     <div className="flex items-center flex-wrap gap-3 mt-4">
                       <select
                         value={task.status}
+                        disabled={updatingTaskStatusId === task._id}
                         onChange={(e) =>
                           handleStatusChange(task._id, e.target.value)
                         }
-                        className={`px-3 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${getStatusColor(
+                        className={`px-3 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${
+                          updatingTaskStatusId === task._id ? 'opacity-50 cursor-wait' : ''
+                        } ${getStatusColor(
                           task.status
                         )}`}
                       >
@@ -1705,7 +1715,7 @@ const Tasks = ({ openCreate = false }) => {
                       <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Client *
                       </label>
-                      {canSelectClient && !isTaskFixedLocked && (
+                      {isGlobalAdmin && canSelectClient && !isTaskFixedLocked && (
                         <button
                           type="button"
                           onClick={() => setShowAddClientModal(true)}
@@ -1971,13 +1981,14 @@ const Tasks = ({ openCreate = false }) => {
                       : 'hover:from-primary-700 hover:to-primary-800 hover:shadow-xl'
                       }`}
                   >
-                    {isSavingTask
-                      ? editingTask
-                        ? 'Saving...'
-                        : 'Creating...'
-                      : editingTask
-                        ? 'Update Task'
-                        : 'Create Task'}
+                    {isSavingTask ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        {newTask.status === 'done' ? 'Completing & Generating Bill...' : (editingTask ? 'Saving...' : 'Creating...')}
+                      </span>
+                    ) : (
+                      editingTask ? 'Update Task' : 'Create Task'
+                    )}
                   </button>
                 </div>
               </form>
@@ -2419,7 +2430,7 @@ const Tasks = ({ openCreate = false }) => {
 
       {/* Bill Type Selection Modal */}
       {/* Quick Add Client Modal */}
-      {showAddClientModal && (
+      {showAddClientModal && isGlobalAdmin && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[70] p-4 overflow-y-auto">
           <div className={`rounded-2xl max-w-lg w-full p-6 shadow-2xl my-8 ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
             <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700 mb-4">
@@ -2623,6 +2634,17 @@ const Tasks = ({ openCreate = false }) => {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCompletingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 max-w-sm mx-4 text-center border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
+            <div>
+              <h4 className="font-bold text-base">Completing Task</h4>
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Generating invoice/challan... Please wait.</p>
             </div>
           </div>
         </div>

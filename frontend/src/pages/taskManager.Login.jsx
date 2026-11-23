@@ -54,7 +54,6 @@ const TaskManagerLogin = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      console.log('✅ Google credential received');
       setError('');
       setLoading(true);
       const response = await googleLogin(credentialResponse.credential, inviteToken);

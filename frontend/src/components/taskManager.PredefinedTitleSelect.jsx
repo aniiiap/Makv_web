@@ -17,6 +17,7 @@ const PredefinedTitleSelect = ({
   onSubtitleChange,
   disabled = false,
   isDark = false,
+  isGlobalAdmin = false,
 }) => {
   const [isTitleOpen, setIsTitleOpen] = useState(false);
   const [titleSearch, setTitleSearch] = useState('');
@@ -32,13 +33,17 @@ const PredefinedTitleSelect = ({
   // Sync custom title mode
   useEffect(() => {
     if (!titleValue) return;
+    if (!isGlobalAdmin) {
+      setIsCustomTitle(false);
+      return;
+    }
     const matched = predefinedTitles.some(
       (t) => t.title?.toLowerCase() === titleValue.toLowerCase()
     );
     if (!matched && titleValue.trim() !== '') {
       setIsCustomTitle(true);
     }
-  }, [titleValue, predefinedTitles]);
+  }, [titleValue, predefinedTitles, isGlobalAdmin]);
 
   // Find currently selected predefined title object to get linked subtitles
   const matchedTitleObj = predefinedTitles.find(
@@ -52,13 +57,17 @@ const PredefinedTitleSelect = ({
   // Sync custom subtitle mode
   useEffect(() => {
     if (!subtitleValue) return;
+    if (!isGlobalAdmin) {
+      setIsCustomSubtitle(false);
+      return;
+    }
     const matched = linkedSubtitles.some(
       (s) => s.name?.toLowerCase() === subtitleValue.toLowerCase()
     );
     if (!matched && subtitleValue.trim() !== '') {
       setIsCustomSubtitle(true);
     }
-  }, [subtitleValue, linkedSubtitles]);
+  }, [subtitleValue, linkedSubtitles, isGlobalAdmin]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -92,7 +101,7 @@ const PredefinedTitleSelect = ({
           Title *
         </label>
 
-        {isCustomTitle ? (
+        {isCustomTitle && isGlobalAdmin ? (
           <div className="relative">
             <input
               type="text"
@@ -204,19 +213,21 @@ const PredefinedTitleSelect = ({
                     })
                   )}
 
-                  <div className={`border-t mt-1 pt-1 ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomTitle(true);
-                        setIsTitleOpen(false);
-                        setTitleSearch('');
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
-                    >
-                      + Other (Write custom)
-                    </button>
-                  </div>
+                  {isGlobalAdmin && (
+                    <div className={`border-t mt-1 pt-1 ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomTitle(true);
+                          setIsTitleOpen(false);
+                          setTitleSearch('');
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                      >
+                        + Other (Write custom)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -230,7 +241,7 @@ const PredefinedTitleSelect = ({
           Sub-title *
         </label>
 
-        {isCustomSubtitle ? (
+        {isCustomSubtitle && isGlobalAdmin ? (
           <div className="relative">
             <input
               type="text"
@@ -353,19 +364,21 @@ const PredefinedTitleSelect = ({
                     );
                   })}
 
-                  <div className={`border-t mt-1 pt-1 ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomSubtitle(true);
-                        setIsSubtitleOpen(false);
-                        setSubtitleSearch('');
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
-                    >
-                      + Other (Write custom)
-                    </button>
-                  </div>
+                  {isGlobalAdmin && (
+                    <div className={`border-t mt-1 pt-1 ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomSubtitle(true);
+                          setIsSubtitleOpen(false);
+                          setSubtitleSearch('');
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                      >
+                        + Other (Write custom)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

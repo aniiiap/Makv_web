@@ -153,6 +153,13 @@ exports.getAllUsers = async (req, res, next) => {
 // @access  Private
 exports.createClient = async (req, res, next) => {
     try {
+        if (req.user?.role !== 'admin' && req.user?.role !== 'master') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Only admin and master admin can add clients.',
+            });
+        }
+
         const {
             name,
             email,

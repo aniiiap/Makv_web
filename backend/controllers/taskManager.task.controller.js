@@ -930,8 +930,7 @@ exports.updateTask = async (req, res, next) => {
       .populate('client', 'name companyName')
       .populate('checkedBy', 'name email avatar');
 
-    // Auto-generate bill/challan when marked as done
-    if (task && task.status === 'done') {
+    if (statusChanged && task && task.status === 'done') {
       try {
         const { autoGenerateBillForTask } = require('./billController');
         await autoGenerateBillForTask(task, req.user);
