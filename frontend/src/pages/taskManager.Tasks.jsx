@@ -474,12 +474,12 @@ const Tasks = ({ openCreate = false }) => {
         return;
       }
     }
+    if (editingTask) {
+      handleUpdateTask(e);
+      return;
+    }
     try {
       setIsSavingTask(true);
-      if (editingTask) {
-        handleUpdateTask(e);
-        return;
-      }
       const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
       const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
       if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0)) {
@@ -488,14 +488,19 @@ const Tasks = ({ openCreate = false }) => {
         return;
       }
       const isClientAvailable = usePredefinedTitles || canSelectClient;
+
+      // Only global admins may send isFixed/fixedAmount to the backend
       const taskData = {
         ...newTask,
-        team: newTask.team || null, // Allow null for personal tasks
+        team: newTask.team || null,
         client: isClientAvailable && newTask.client ? newTask.client : null,
-        assignedTo: newTask.assignedTo || ((newTask.team || (isClientAvailable && newTask.client)) ? null : user?.id), // Default to self for personal tasks
+        assignedTo: newTask.assignedTo || ((newTask.team || (isClientAvailable && newTask.client)) ? null : user?.id),
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
-        fixedAmount: (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
-        isFixed: Boolean(newTask.isFixed),
+
+        isFixed: isGlobalAdmin ? Boolean(newTask.isFixed) : false,
+        fixedAmount: isGlobalAdmin
+          ? (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0 ? parsedAmount : null)
+          : null,
       };
       await api.post('/tasks', taskData);
       closeTaskModal();
@@ -508,15 +513,20 @@ const Tasks = ({ openCreate = false }) => {
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
+    // Prevent concurrent status updates
     if (updatingTaskStatusId) return;
     const isDone = newStatus === 'done';
     setUpdatingTaskStatusId(taskId);
     if (isDone) setIsCompletingTask(true);
     try {
       await api.put(`/tasks/${taskId}`, { status: newStatus });
+
+      if (isDone && editingTask && editingTask === taskId) {
+        closeTaskModal();
+      }
       await fetchTasks();
     } catch (error) {
-      alert(error.message || 'Failed to update task');
+      alert(error.response?.data?.message || error.message || 'Failed to update task');
     } finally {
       setUpdatingTaskStatusId(null);
       if (isDone) setIsCompletingTask(false);
@@ -825,12 +835,15 @@ const Tasks = ({ openCreate = false }) => {
       assignedTo: newTask.assignedTo || null,
       tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
       isBillable: overrideIsBillable !== undefined ? overrideIsBillable : newTask.isBillable,
-      isFixed: Boolean(newTask.isFixed),
+      // Only global admins may send isFixed/fixedAmount to the backend
+      isFixed: isGlobalAdmin ? Boolean(newTask.isFixed) : false,
     };
 
     const hasFixedAmount = newTask.fixedAmount !== '' && newTask.fixedAmount !== null && newTask.fixedAmount !== undefined;
     const parsedAmount = hasFixedAmount ? Number(newTask.fixedAmount) : null;
-    taskData.fixedAmount = (taskData.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null;
+    taskData.fixedAmount = isGlobalAdmin
+      ? (taskData.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0 ? parsedAmount : null)
+      : null;
 
     if (!isGlobalAdmin) {
       if (editingTask && editingFixedTask && !canEditFixedDetails) {
@@ -844,6 +857,9 @@ const Tasks = ({ openCreate = false }) => {
         delete taskData.tags;
         delete taskData.fixedAmount;
         delete taskData.isFixed;
+      } else {
+        delete taskData.isFixed;
+        delete taskData.fixedAmount;
       }
     }
 
@@ -898,8 +914,10 @@ const Tasks = ({ openCreate = false }) => {
         assignedTo: newTask.assignedTo || null,
         tags: newTask.tags ? newTask.tags.split(',').map((t) => t.trim()) : [],
         isBillable: false, // Ensure it's false initially, the backend marks it true upon bill generation
-        fixedAmount: (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0) ? parsedAmount : null,
-        isFixed: Boolean(newTask.isFixed),
+        isFixed: isGlobalAdmin ? Boolean(newTask.isFixed) : false,
+        fixedAmount: isGlobalAdmin
+          ? (isClientAvailable && newTask.client && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount >= 0 ? parsedAmount : null)
+          : null,
       };
 
       const response = await api.post('/tasks', taskData);
@@ -974,10 +992,11 @@ const Tasks = ({ openCreate = false }) => {
       const taskData = buildUpdatePayload();
 
       await api.put(`/tasks/${editingTask}`, taskData);
+      // Close the modal first so users cannot click again during the refresh
       closeTaskModal();
-      fetchTasks();
+      await fetchTasks();
     } catch (error) {
-      alert(error.message || 'Failed to update task');
+      alert(error.response?.data?.message || error.message || 'Failed to update task');
     } finally {
       setIsSavingTask(false);
     }
@@ -1207,21 +1226,22 @@ const Tasks = ({ openCreate = false }) => {
     // Normalize IDs to strings for comparison
     const userId = (user._id || user.id || '').toString();
     const taskCreatorId = (task.createdBy?._id || task.createdBy || '').toString();
+    const isGlobalAdminOrMaster = user.role === 'admin' || user.role === 'master';
 
     const isCreator = taskCreatorId === userId;
 
     if (!task.team) {
-      return task.isFixed ? user.role === 'admin' : isCreator;
+      // Personal / client-linked task (no team)
+      if (task.isFixed) return isGlobalAdminOrMaster;
+      return isGlobalAdminOrMaster || isCreator;
     }
 
     // Find the team to check role
     const teamId = (task.team._id || task.team || '').toString();
-
-    // 'teams' state comes from API, IDs should be strings, but safety first
     const team = teams.find(t => (t._id || '').toString() === teamId);
 
-    // If team details not found (shouldn't happen if loaded), default to strict
-    if (!team) return task.isFixed ? user.role === 'admin' : isCreator;
+    // If team details not found, default to strict
+    if (!team) return task.isFixed ? isGlobalAdminOrMaster : (isGlobalAdminOrMaster || isCreator);
 
     // Find current user in members
     const member = team.members?.find(m => {
@@ -1229,11 +1249,16 @@ const Tasks = ({ openCreate = false }) => {
       return memberUserId === userId;
     });
 
-    if (!member) return task.isFixed ? user.role === 'admin' : isCreator;
-    if (task.isFixed) return user.role === 'admin' || ['admin', 'owner'].includes(member.role);
+    const teamRole = member?.role;
+    const isTeamAdminOrOwner = ['admin', 'owner'].includes(teamRole);
 
-    // Permissions: Creator OR Team Owner OR Team Admin
-    return isCreator || ['admin', 'owner'].includes(member.role);
+    if (task.isFixed) return isGlobalAdminOrMaster || isTeamAdminOrOwner;
+
+    // Teams with clientsEnabled: only global admin/master or team admin/owner can delete
+    if (team.clientsEnabled) return isGlobalAdminOrMaster || isTeamAdminOrOwner;
+
+    // Regular team task: creator OR team admin/owner can delete
+    return isGlobalAdminOrMaster || isCreator || isTeamAdminOrOwner;
   };
 
   return (
@@ -1534,12 +1559,12 @@ const Tasks = ({ openCreate = false }) => {
                     <div className="flex items-center flex-wrap gap-3 mt-4">
                       <select
                         value={task.status}
-                        disabled={updatingTaskStatusId === task._id}
+                        disabled={!!updatingTaskStatusId || isCompletingTask}
                         onChange={(e) =>
                           handleStatusChange(task._id, e.target.value)
                         }
                         className={`px-3 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${
-                          updatingTaskStatusId === task._id ? 'opacity-50 cursor-wait' : ''
+                          (updatingTaskStatusId === task._id || isCompletingTask) ? 'opacity-50 cursor-wait' : ''
                         } ${getStatusColor(
                           task.status
                         )}`}
@@ -2676,8 +2701,8 @@ const Tasks = ({ openCreate = false }) => {
           <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 max-w-sm mx-4 text-center border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
             <div>
-              <h4 className="font-bold text-base">Completing Task</h4>
-              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Generating invoice/challan... Please wait.</p>
+              <h4 className="font-bold text-base">Updating Task Status</h4>
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Please wait...</p>
             </div>
           </div>
         </div>

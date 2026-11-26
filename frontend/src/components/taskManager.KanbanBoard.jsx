@@ -215,7 +215,7 @@ const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick, onEditTask, onDeleteTas
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
             <div>
               <h4 className="font-bold text-base text-gray-900 dark:text-white">Updating Task Status</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generating invoice/challan... Please wait.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Please wait...</p>
             </div>
           </div>
         </div>

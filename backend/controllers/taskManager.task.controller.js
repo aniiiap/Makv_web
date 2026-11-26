@@ -962,12 +962,7 @@ exports.deleteTask = async (req, res, next) => {
       });
     }
 
-    if (task.isFixed && !task.team && req.user?.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Fixed tasks without a team can only be deleted by admins',
-      });
-    }
+    const isGlobalAdminOrMaster = req.user?.role === 'admin' || req.user?.role === 'master';
 
     // Verify user can delete task
     if (task.team) {
@@ -989,19 +984,29 @@ exports.deleteTask = async (req, res, next) => {
         (m) => m.user.toString() === req.user.id.toString()
       );
 
-      // For fixed tasks in a team: only global admin, team owner, or team admin can delete
-      if (task.isFixed && req.user?.role !== 'admin' && !['owner', 'admin'].includes(member?.role)) {
+      const isTeamAdminOrOwner = ['owner', 'admin'].includes(member?.role);
+
+      // Fixed tasks: only global admin/master or team admin/owner can delete
+      if (task.isFixed && !isGlobalAdminOrMaster && !isTeamAdminOrOwner) {
         return res.status(403).json({
           success: false,
           message: 'Fixed tasks can only be deleted by admins, team owners, or team admins',
         });
       }
 
-      // Only creator, owner, or admin can delete (global admin can also delete fixed tasks)
+      // Teams with clientsEnabled: only global admin/master or team admin/owner can delete
+      if (team.clientsEnabled && !isGlobalAdminOrMaster && !isTeamAdminOrOwner) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only admins or team admins can delete tasks in this team',
+        });
+      }
+
+      // Regular team task: creator, global admin/master, team owner, or team admin can delete
       if (
-        !(task.isFixed && req.user?.role === 'admin') &&
+        !isGlobalAdminOrMaster &&
         task.createdBy.toString() !== req.user.id.toString() &&
-        !['owner', 'admin'].includes(member.role)
+        !isTeamAdminOrOwner
       ) {
         return res.status(403).json({
           success: false,
@@ -1009,15 +1014,16 @@ exports.deleteTask = async (req, res, next) => {
         });
       }
     } else if (task.isFixed) {
-      if (req.user?.role !== 'admin') {
+      // Fixed personal/client tasks: only global admin/master can delete
+      if (!isGlobalAdminOrMaster) {
         return res.status(403).json({
           success: false,
-          message: 'Fixed tasks without a team can only be deleted by admins',
+          message: 'Fixed tasks can only be deleted by admins',
         });
       }
     } else {
-      // Personal task - only creator can delete
-      if (task.createdBy.toString() !== req.user.id.toString()) {
+      // Personal task - only creator or global admin/master can delete
+      if (!isGlobalAdminOrMaster && task.createdBy.toString() !== req.user.id.toString()) {
         return res.status(403).json({
           success: false,
           message: 'Not authorized to delete this task',
