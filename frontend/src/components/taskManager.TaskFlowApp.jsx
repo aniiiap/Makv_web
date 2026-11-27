@@ -19,6 +19,7 @@ import TaskManagerCalendar from '../pages/taskManager.Calendar';
 import TaskManagerAnalytics from '../pages/taskManager.Analytics';
 import TaskManagerCompletedTasks from '../pages/taskManager.CompletedTasks';
 import TaskManagerCheckedTasks from '../pages/taskManager.CheckedTasks';
+import TaskManagerNonBillableTasks from '../pages/taskManager.NonBillableTasks';
 import BillList from '../pages/taskManager.BillList';
 import BillGenerator from '../pages/taskManager.BillGenerator';
 import HUFBillGenerator from '../pages/taskManager.HUFBillGenerator';
@@ -95,6 +96,13 @@ function TaskFlowApp() {
                       <TaskManagerCompletedTasks />
                     </Layout>
                   </PrivateRoute>
+                } />
+                <Route path="tasks/non-billable" element={
+                  <AdminRoute>
+                    <Layout>
+                      <TaskManagerNonBillableTasks />
+                    </Layout>
+                  </AdminRoute>
                 } />
                 <Route path="my-daily-work" element={
                   <PrivateRoute>

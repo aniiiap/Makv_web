@@ -27,6 +27,9 @@ const {
   addAttachment,
   deleteAttachment,
   toggleTaskChecked,
+  markTaskBillable,
+  markTaskNonBillable,
+  getTaskBill,
 } = require('../controllers/taskManager.task.controller');
 const { protect } = require('../middleware/taskManager.auth');
 const { documentUpload } = require('../config/cloudinary');
@@ -63,6 +66,9 @@ router.post('/:id/attachments', documentUpload.array('files', 10), addAttachment
 router.delete('/:id/attachments/:attachmentId', deleteAttachment);
 
 router.patch('/:id/toggle-checked', toggleTaskChecked);
+router.patch('/:id/mark-billable', markTaskBillable);
+router.patch('/:id/mark-non-billable', markTaskNonBillable);
+router.get('/:id/bill', getTaskBill);
 
 module.exports = router;
 

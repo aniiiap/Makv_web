@@ -1314,9 +1314,9 @@ exports.sendPaySlip = async (req, res) => {
 // In-memory lock to prevent race conditions during concurrent auto-bill generation
 const generatingTaskBills = new Set();
 
-// @desc    Auto-generate a bill/challan for a task when marked as done
+// @desc    Auto-generate a bill/challan for a task when marked as billable
 // @access  Internal Helper
-exports.autoGenerateBillForTask = async (task, user) => {
+exports.autoGenerateBillForTask = async (task, user, overrideAmount = undefined) => {
   if (!task || !task._id) return null;
   const taskIdStr = task._id.toString();
 
@@ -1329,10 +1329,13 @@ exports.autoGenerateBillForTask = async (task, user) => {
 
   try {
     const clientId = task.client?._id || task.client;
-    let fixedAmount = Number(task.fixedAmount);
+    const hasOverrideAmount = overrideAmount !== undefined && overrideAmount !== null && overrideAmount !== '';
+    let fixedAmount = hasOverrideAmount ? Number(overrideAmount) : Number(task.fixedAmount);
 
-    // If fixedAmount is not explicitly set on the task, look up in PredefinedTitle by title & subtitle
-    if ((!fixedAmount || fixedAmount <= 0) && task.title) {
+    if (hasOverrideAmount && Number.isFinite(fixedAmount) && fixedAmount >= 0) {
+      await TaskManagerTask.findByIdAndUpdate(task._id, { fixedAmount });
+    } else if ((!fixedAmount || fixedAmount <= 0) && task.title) {
+      // If fixedAmount is not explicitly set on the task, look up in PredefinedTitle by title & subtitle
       try {
         const TaskManagerPredefinedTitle = require('../models/taskManager.PredefinedTitle');
         const escapedTitle = task.title.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');

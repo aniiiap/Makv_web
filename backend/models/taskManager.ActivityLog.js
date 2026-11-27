@@ -36,6 +36,9 @@ const activityLogSchema = new mongoose.Schema(
         'attachment_deleted',
         'checked',
         'unchecked',
+        'billable_status_changed',
+        'marked_billable',
+        'marked_non_billable',
       ],
     },
     field: String, // Which field was changed (status, priority, assignedTo, etc.)

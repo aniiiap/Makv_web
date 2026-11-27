@@ -17,9 +17,12 @@ import {
   FiFilter,
   FiAlertCircle,
   FiLayers,
+  FiDollarSign,
+  FiPrinter,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
+import ChallanPreviewModal from '../components/taskManager.ChallanPreviewModal';
 
 const CheckedTasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -30,6 +33,7 @@ const CheckedTasks = () => {
   const [togglingId, setTogglingId] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [previewChallanTask, setPreviewChallanTask] = useState(null);
 
   const { isDark } = useTheme();
   const { user } = useTaskManagerAuth();
@@ -45,7 +49,7 @@ const CheckedTasks = () => {
     };
   });
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = ['admin', 'master', 'superadmin', 'super_admin'].includes(user?.role);
 
   // Fetch initial reference data
   useEffect(() => {
@@ -617,6 +621,20 @@ const CheckedTasks = () => {
                       </span>
                     )}
 
+                    {/* Billable Badge */}
+                    {task.isBillable && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-medium border ${
+                          isDark
+                            ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        <FiDollarSign className="w-3 h-3" />
+                        Billable{task.fixedAmount !== null && task.fixedAmount !== undefined ? ` (₹${task.fixedAmount})` : ''}
+                      </span>
+                    )}
+
                     {/* Checked By / At info */}
                     <span
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-medium border ${
@@ -637,6 +655,24 @@ const CheckedTasks = () => {
 
                 {/* Action buttons (Right side) */}
                 <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+                  {isAdmin && task.isBillable && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewChallanTask(task);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                        isDark
+                          ? 'bg-primary-900/30 text-primary-300 border-primary-700 hover:bg-primary-900/50'
+                          : 'bg-primary-50 text-primary-700 border-primary-300 hover:bg-primary-100'
+                      }`}
+                      title="Preview / Print Challan"
+                    >
+                      <FiPrinter className="w-4 h-4" />
+                      <span>Challan</span>
+                    </button>
+                  )}
                   {isAdmin && (
                     <button
                       type="button"
@@ -861,6 +897,11 @@ const CheckedTasks = () => {
           </div>
         </div>
       )}
+      <ChallanPreviewModal
+        isOpen={!!previewChallanTask}
+        onClose={() => setPreviewChallanTask(null)}
+        task={previewChallanTask}
+      />
     </div>
   );
 };

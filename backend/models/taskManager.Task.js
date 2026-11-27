@@ -71,6 +71,19 @@ const taskSchema = new mongoose.Schema(
           ref: 'TaskManagerUser',
           default: null,
         },
+    isNonBillable: {
+      type: Boolean,
+      default: false,
+    },
+    nonBillableAt: {
+      type: Date,
+      default: null,
+    },
+    nonBillableBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TaskManagerUser',
+      default: null,
+    },
     dueDate: {
       type: Date,
     },

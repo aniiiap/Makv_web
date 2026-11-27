@@ -1470,8 +1470,6 @@ const Tasks = ({ openCreate = false }) => {
           onDeleteTask={handleDeleteTask}
           canDeleteTask={canDeleteTask}
           hideDone={!filters.status}
-          isAdmin={user?.role === 'admin'}
-          onToggleChecked={handleToggleTaskChecked}
         />
       ) : (
         /* List View */
@@ -1512,27 +1510,6 @@ const Tasks = ({ openCreate = false }) => {
                         )}
                       </button>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {user?.role === 'admin' && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleTaskChecked(task._id);
-                            }}
-                            disabled={togglingCheckedId === task._id}
-                            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                              isDark
-                                ? 'bg-gray-700 text-gray-300 border-gray-600 hover:border-emerald-500 hover:text-emerald-300 hover:bg-emerald-950/30'
-                                : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
-                            }`}
-                            title="Admin Check: Mark as Checked and move to Checked Tasks"
-                          >
-                            <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
-                              {task.isChecked ? '✓' : ''}
-                            </span>
-                            <span>Check</span>
-                          </button>
-                        )}
                         <button
                           onClick={() => handleEditTask(task)}
                           className="p-1.5 sm:p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -1675,20 +1652,6 @@ const Tasks = ({ openCreate = false }) => {
                 <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {editingTask ? 'Edit Task' : 'Create New Task'}
                 </h2>
-              {editingTask && isGlobalAdmin && (
-                <button
-                  type="button"
-                  onClick={() => handleToggleTaskChecked(editingTask)}
-                  disabled={togglingCheckedId === editingTask}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-all"
-                  title="Mark task as Checked and move to Checked Tasks"
-                >
-                  <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
-                    ✓
-                  </span>
-                  <span>Mark as Checked</span>
-                </button>
-              )}
               </div>
               <button
                 onClick={closeTaskModal}

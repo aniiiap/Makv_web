@@ -237,6 +237,29 @@ exports.getTasks = async (req, res, next) => {
       }
     }
 
+    // Filter by non-billable status
+    if (req.query.nonBillable === 'true') {
+      const nonBillableCondition = { isNonBillable: true };
+      if (query.$and) {
+        query.$and.push(nonBillableCondition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, nonBillableCondition];
+        delete query.$or;
+      } else {
+        Object.assign(query, nonBillableCondition);
+      }
+    } else if (req.query.nonBillable === 'false' || req.query.excludeNonBillable === 'true') {
+      const excludeNonBillableCondition = { isNonBillable: { $ne: true } };
+      if (query.$and) {
+        query.$and.push(excludeNonBillableCondition);
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, excludeNonBillableCondition];
+        delete query.$or;
+      } else {
+        Object.assign(query, excludeNonBillableCondition);
+      }
+    }
+
     // Feature 2: Task Visibility on Review
     // When a task is 'in-review', it should only be visible to the reviewer (the person it is currently assignedTo)
     // admin, and the creator. Other team members cannot see it while it's in review.
@@ -445,15 +468,6 @@ exports.createTask = async (req, res, next) => {
       .populate('createdBy', 'name email avatar')
       .populate('client', 'name companyName')
       .populate('checkedBy', 'name email avatar');
-
-    if (populatedTask && populatedTask.status === 'done') {
-      try {
-        const { autoGenerateBillForTask } = require('./billController');
-        await autoGenerateBillForTask(populatedTask, req.user);
-      } catch (billErr) {
-        console.error('[Auto-Bill] Error on task create:', billErr);
-      }
-    }
 
     // Create activity log for task creation
     await createActivityLog(
@@ -930,15 +944,6 @@ exports.updateTask = async (req, res, next) => {
       .populate('client', 'name companyName')
       .populate('checkedBy', 'name email avatar');
 
-    if (statusChanged && task && task.status === 'done') {
-      try {
-        const { autoGenerateBillForTask } = require('./billController');
-        await autoGenerateBillForTask(task, req.user);
-      } catch (billErr) {
-        console.error('[Auto-Bill] Error on task update:', billErr);
-      }
-    }
-
     res.json({
       success: true,
       data: task,
@@ -962,25 +967,27 @@ exports.deleteTask = async (req, res, next) => {
       });
     }
 
-    const isGlobalAdminOrMaster = req.user?.role === 'admin' || req.user?.role === 'master';
+    const isGlobalAdminOrMaster = ['admin', 'master', 'superadmin', 'super_admin'].includes(req.user?.role);
 
     // Verify user can delete task
     if (task.team) {
       const teamId = task.team._id || task.team;
-      const team = await TaskManagerTeam.findOne({
-        _id: teamId,
-        'members.user': req.user.id,
-        isActive: true,
-      });
+      const team = isGlobalAdminOrMaster
+        ? await TaskManagerTeam.findById(teamId)
+        : await TaskManagerTeam.findOne({
+            _id: teamId,
+            'members.user': req.user.id,
+            isActive: true,
+          });
 
-      if (!team) {
+      if (!team && !isGlobalAdminOrMaster) {
         return res.status(403).json({
           success: false,
           message: 'Not authorized to delete this task',
         });
       }
 
-      const member = team.members.find(
+      const member = team?.members?.find(
         (m) => m.user.toString() === req.user.id.toString()
       );
 
@@ -995,7 +1002,7 @@ exports.deleteTask = async (req, res, next) => {
       }
 
       // Teams with clientsEnabled: only global admin/master or team admin/owner can delete
-      if (team.clientsEnabled && !isGlobalAdminOrMaster && !isTeamAdminOrOwner) {
+      if (team?.clientsEnabled && !isGlobalAdminOrMaster && !isTeamAdminOrOwner) {
         return res.status(403).json({
           success: false,
           message: 'Only admins or team admins can delete tasks in this team',
@@ -2698,6 +2705,178 @@ exports.toggleTaskChecked = async (req, res, next) => {
       success: true,
       message: willBeChecked ? 'Task marked as checked' : 'Task unchecked',
       data: populatedTask,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const isAdminUser = (user) => ['admin', 'master', 'superadmin', 'super_admin'].includes(user?.role);
+
+// @desc    Mark a completed task as billable with an explicit amount and generate challan
+// @route   PATCH /api/tasks/:id/mark-billable
+// @access  Private (Admin / Master / Super Admin only)
+exports.markTaskBillable = async (req, res, next) => {
+  try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins are authorized to mark tasks as billable',
+      });
+    }
+
+    const { amount } = req.body;
+    if (amount === undefined || amount === null || amount === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter an amount before generating challan',
+      });
+    }
+
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be a valid non-negative number',
+      });
+    }
+
+    const task = await TaskManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    if (!task.client) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot generate challan: no client is linked to this task',
+      });
+    }
+
+    task.fixedAmount = parsedAmount;
+    task.isBillable = true;
+    task.isNonBillable = false;
+    task.nonBillableAt = null;
+    task.nonBillableBy = null;
+    await task.save();
+
+    const { autoGenerateBillForTask } = require('./billController');
+    const bill = await autoGenerateBillForTask(task, req.user, parsedAmount);
+    if (!bill) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate challan for this task',
+      });
+    }
+
+    await createActivityLog(
+      task._id,
+      req.user.id,
+      'marked_billable',
+      'isBillable',
+      false,
+      true,
+      `Marked task as billable (₹${parsedAmount}) and generated challan ${bill.invoiceNo}`
+    );
+
+    const populatedTask = await TaskManagerTask.findById(task._id)
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar')
+      .populate('checkedBy', 'name email avatar')
+      .populate('client', 'name companyName');
+
+    res.json({
+      success: true,
+      message: `Challan ${bill.invoiceNo} generated successfully`,
+      data: populatedTask,
+      bill,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Mark a completed task as non-billable (moves to Non-Billable Tasks page)
+// @route   PATCH /api/tasks/:id/mark-non-billable
+// @access  Private (Admin / Master / Super Admin only)
+exports.markTaskNonBillable = async (req, res, next) => {
+  try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins are authorized to mark tasks as non-billable',
+      });
+    }
+
+    const task = await TaskManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    task.isNonBillable = true;
+    task.isBillable = false;
+    task.nonBillableAt = new Date();
+    task.nonBillableBy = req.user.id;
+    await task.save();
+
+    await createActivityLog(
+      task._id,
+      req.user.id,
+      'marked_non_billable',
+      'isNonBillable',
+      false,
+      true,
+      'Marked task as non-billable'
+    );
+
+    const populatedTask = await TaskManagerTask.findById(task._id)
+      .populate('team', 'name')
+      .populate('assignedTo', 'name email avatar')
+      .populate('createdBy', 'name email avatar')
+      .populate('checkedBy', 'name email avatar')
+      .populate('client', 'name companyName');
+
+    res.json({
+      success: true,
+      message: 'Task marked as non-billable',
+      data: populatedTask,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get generated challan/bill for a task
+// @route   GET /api/tasks/:id/bill
+// @access  Private (Admin / Master / Super Admin only)
+exports.getTaskBill = async (req, res, next) => {
+  try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins are authorized to view task challans',
+      });
+    }
+
+    const Bill = require('../models/Bill');
+    const bill = await Bill.findOne({ taskId: req.params.id });
+    if (!bill) {
+      return res.status(404).json({
+        success: false,
+        message: 'No challan found for this task',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: bill,
     });
   } catch (error) {
     next(error);

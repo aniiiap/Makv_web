@@ -11,7 +11,7 @@ import {
   FiLogOut, FiUser, FiBarChart2, FiCalendar, FiChevronUp, 
   FiChevronDown, FiMoon, FiSun, FiFileText, FiSquare, 
   FiShield, FiBriefcase, FiPause, FiPlay, FiClock 
-, FiTag } from 'react-icons/fi';
+, FiTag, FiSlash } from 'react-icons/fi';
 
 
 // Triggering reload for DailyProgress widget
@@ -127,6 +127,7 @@ const Layout = ({ children }) => {
     { name: 'My Daily Work', href: '/taskflow/my-daily-work', icon: FiClock },
     { name: 'Completed', href: '/taskflow/tasks/completed', icon: FiCheckCircle },
     { name: 'Checked Tasks', href: '/taskflow/tasks/checked', icon: FiCheckSquare },
+    ...(['admin', 'master', 'superadmin', 'super_admin'].includes(user?.role) ? [{ name: 'Non-Billable', href: '/taskflow/tasks/non-billable', icon: FiSlash }] : []),
     ...(canAccessBills ? [{ name: 'Challan & Invoice', href: '/taskflow/bills', icon: FiFileText }] : []),
     { name: 'Analytics', href: '/taskflow/analytics', icon: FiBarChart2 },
     { name: 'Calendar', href: '/taskflow/calendar', icon: FiCalendar },

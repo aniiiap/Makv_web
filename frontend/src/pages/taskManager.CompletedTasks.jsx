@@ -4,9 +4,12 @@ import api from '../utils/taskManager.api';
 import { useTaskManagerAuth } from '../context/taskManager.AuthContext';
 import { useTheme } from '../context/taskManager.ThemeContext';
 import {
-  FiCheckCircle, FiUser, FiCalendar, FiTag, FiSearch, FiFolder, FiDownload, FiClock, FiTrash2, FiPaperclip, FiX, FiEye, FiFile, FiImage, FiFileText, FiActivity, FiCheckSquare, FiPlus, FiEdit2
+  FiCheckCircle, FiUser, FiCalendar, FiTag, FiSearch, FiFolder, FiDownload, FiClock, FiTrash2, FiPaperclip, FiX, FiEye, FiFile, FiImage, FiFileText, FiActivity, FiCheckSquare, FiPlus, FiEdit2, FiBriefcase, FiDollarSign, FiSlash, FiPrinter
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
+import { toast } from 'react-hot-toast';
+import ConfirmationModal from '../components/taskManager.ConfirmationModal';
+import ChallanPreviewModal from '../components/taskManager.ChallanPreviewModal';
 
 const CompletedTasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -15,6 +18,19 @@ const CompletedTasks = () => {
   const [searchText, setSearchText] = useState('');
   const { isDark } = useTheme();
   const { user } = useTaskManagerAuth();
+  const isAdmin = ['admin', 'master', 'superadmin', 'super_admin'].includes(user?.role);
+  const [billableModal, setBillableModal] = useState({ isOpen: false, task: null, amount: '' });
+  const [isSubmittingBillable, setIsSubmittingBillable] = useState(false);
+  const [previewChallanTask, setPreviewChallanTask] = useState(null);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    onConfirm: null,
+  });
+  const [isConfirmLoading, setIsConfirmLoading] = useState(false);
   const [searchParams] = useSearchParams();
   const [selectedTask, setSelectedTask] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -62,11 +78,11 @@ const CompletedTasks = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const params = { status: 'done', excludeChecked: 'true' };
+      const params = { status: 'done', excludeChecked: 'true', excludeNonBillable: 'true' };
       if (filters.team) params.team = filters.team;
       
       // Admin/Owner can see all, regular members see their own
-      const isGlobalAdmin = user?.role === 'admin';
+      const isGlobalAdmin = isAdmin;
       const filteredTeam = teams.find(t => t._id === filters.team);
       const memberInFilteredTeam = filteredTeam?.members?.find(m => (m.user?._id || m.user) === user?._id || (m.user?._id || m.user) === user?.id);
       const isTeamAdminOrOwner = ['admin', 'owner'].includes(memberInFilteredTeam?.role);
@@ -88,22 +104,126 @@ const CompletedTasks = () => {
     }
   };
 
-  const handleToggleChecked = async (task) => {
-    if (user?.role !== 'admin') return;
-    const confirmCheck = window.confirm(
-      `Mark "${task.title}" as Checked?\nIt will be moved to the Checked Tasks page.`
-    );
-    if (!confirmCheck) return;
+  const handleToggleChecked = (task) => {
+    if (!isAdmin) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Mark Task as Checked',
+      message: `Mark "${task.title}" as Checked? It will be moved to the Checked Tasks page.`,
+      confirmText: 'Mark Checked',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true);
+          await api.patch(`/tasks/${task._id}/toggle-checked`);
+          setTasks(prev => prev.filter(t => t._id !== task._id));
+          toast.success(`"${task.title}" marked as checked and moved to Checked Tasks.`);
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          console.error('Error checking task:', err);
+          toast.error(err.response?.data?.message || 'Failed to mark task as checked');
+          fetchTasks();
+        } finally {
+          setIsConfirmLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleOpenBillableModal = (task) => {
+    if (!isAdmin) return;
+    if (!task.client) {
+      toast.error('Cannot generate challan: no client is linked to this task.');
+      return;
+    }
+    setBillableModal({
+      isOpen: true,
+      task,
+      amount: task.fixedAmount !== null && task.fixedAmount !== undefined ? String(task.fixedAmount) : '',
+    });
+  };
+
+  const handleConfirmBillable = async (e) => {
+    e.preventDefault();
+    if (isSubmittingBillable || !billableModal.task) return;
+
+    const rawAmount = billableModal.amount;
+    if (rawAmount === '' || rawAmount === null || rawAmount === undefined) {
+      toast.error('Please enter an amount');
+      return;
+    }
+    const parsedAmount = Number(rawAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      toast.error('Please enter a valid non-negative amount');
+      return;
+    }
 
     try {
-      setTasks(prev => prev.filter(t => t._id !== task._id));
-      await api.patch(`/tasks/${task._id}/toggle-checked`);
-      alert(`"${task.title}" marked as checked and moved to Checked Tasks.`);
+      setIsSubmittingBillable(true);
+      const res = await api.patch(`/tasks/${billableModal.task._id}/mark-billable`, {
+        amount: parsedAmount,
+      });
+      const updatedTask = res?.data;
+      setTasks(prev =>
+        prev.map(t => (t._id === billableModal.task._id ? (updatedTask || { ...t, isBillable: true, fixedAmount: parsedAmount }) : t))
+      );
+      toast.success(res?.message || 'Challan generated successfully');
+      setBillableModal({ isOpen: false, task: null, amount: '' });
     } catch (err) {
-      console.error('Error checking task:', err);
-      alert(err.response?.data?.message || 'Failed to mark task as checked');
-      fetchTasks();
+      toast.error(err.response?.data?.message || err.message || 'Failed to generate challan');
+    } finally {
+      setIsSubmittingBillable(false);
     }
+  };
+
+  const handleMarkNonBillable = (task) => {
+    if (!isAdmin || actionLoadingId) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Mark as Non-Billable',
+      message: `Mark "${task.title}" as Non-Billable? It will be moved to the Non-Billable Tasks page.`,
+      confirmText: 'Move to Non-Billable',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true);
+          setActionLoadingId(task._id);
+          await api.patch(`/tasks/${task._id}/mark-non-billable`);
+          setTasks(prev => prev.filter(t => t._id !== task._id));
+          toast.success(`"${task.title}" moved to Non-Billable Tasks.`);
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          toast.error(err.response?.data?.message || err.message || 'Failed to mark as non-billable');
+          fetchTasks();
+        } finally {
+          setActionLoadingId(null);
+          setIsConfirmLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleDeleteCompletedTask = (task) => {
+    if (!isAdmin || actionLoadingId) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Completed Task',
+      message: `Are you sure you want to delete "${task.title}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true);
+          setActionLoadingId(task._id);
+          await api.delete(`/tasks/${task._id}`);
+          setTasks(prev => prev.filter(t => t._id !== task._id));
+          toast.success('Completed task deleted');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          toast.error(err.response?.data?.message || err.message || 'Failed to delete task');
+        } finally {
+          setActionLoadingId(null);
+          setIsConfirmLoading(false);
+        }
+      },
+    });
   };
 
   const handleViewTask = async (task) => {
@@ -141,12 +261,12 @@ const CompletedTasks = () => {
         setShowDetailModal(false);
         setEditingTask(null);
         setCurrentTaskDetails(null);
-        alert('Task has been moved to active tasks.');
+        toast.success('Task has been moved to active tasks.');
       } else {
         setNewTask({ ...newTask, status: newStatus });
       }
     } catch (error) {
-      alert(error.message || 'Failed to update task');
+      toast.error(error.response?.data?.message || error.message || 'Failed to update task');
     }
   };
 
@@ -303,11 +423,24 @@ const CompletedTasks = () => {
             >
               <div className="flex flex-col sm:flex-row justify-between gap-4">
                 <div className="flex-1">
-                  <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{task.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{task.title}</h3>
+                    {task.subtitle && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded border ${isDark ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        {task.subtitle}
+                      </span>
+                    )}
+                  </div>
                   {task.description && (
                     <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{task.description}</p>
                   )}
                   <div className="flex flex-wrap gap-2">
+                    {task.client && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-teal-900/40 text-teal-300' : 'bg-teal-100 text-teal-800'}`}>
+                        <FiBriefcase className="w-3 h-3" />
+                        {task.client.name || task.client.companyName || 'Client'}
+                      </span>
+                    )}
                     {task.team && (
                       <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                         <FiFolder className="w-3 h-3" />
@@ -322,6 +455,12 @@ const CompletedTasks = () => {
                       <FiCheckCircle className="w-3 h-3" />
                       Completed
                     </span>
+                    {task.isBillable && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-emerald-900/40 text-emerald-300' : 'bg-emerald-100 text-emerald-800'}`}>
+                        <FiDollarSign className="w-3 h-3" />
+                        Billable{task.fixedAmount !== null && task.fixedAmount !== undefined ? ` (₹${task.fixedAmount})` : ''}
+                      </span>
+                    )}
                     {task.attachments?.length > 0 && (
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${isDark ? 'bg-primary-900/30 text-primary-400' : 'bg-primary-100 text-primary-700'}`}
@@ -339,25 +478,100 @@ const CompletedTasks = () => {
                       {new Date(task.updatedAt).toLocaleDateString()}
                     </div>
                   </div>
-                  {user?.role === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleChecked(task);
-                      }}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                        isDark
-                          ? 'bg-gray-700 text-gray-200 border-gray-600 hover:border-emerald-500 hover:text-emerald-300'
-                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
-                      }`}
-                      title="Admin Check: Mark as Checked and move to Checked Tasks"
-                    >
-                      <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
-                        ✓
-                      </span>
-                      <span>Mark Checked</span>
-                    </button>
+                  {isAdmin && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!task.isBillable && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenBillableModal(task);
+                            }}
+                            disabled={actionLoadingId === task._id}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              isDark
+                                ? 'bg-emerald-900/30 text-emerald-300 border-emerald-700 hover:bg-emerald-900/50'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                            }`}
+                            title="Mark as Billable and generate challan"
+                          >
+                            <FiDollarSign className="w-3.5 h-3.5" />
+                            <span>Billable</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkNonBillable(task);
+                            }}
+                            disabled={actionLoadingId === task._id}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              isDark
+                                ? 'bg-amber-900/30 text-amber-300 border-amber-700 hover:bg-amber-900/50'
+                                : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                            }`}
+                            title="Mark as Non-Billable and move to Non-Billable Tasks"
+                          >
+                            <FiSlash className="w-3.5 h-3.5" />
+                            <span>Non-Billable</span>
+                          </button>
+                        </>
+                      )}
+                      {task.isBillable && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewChallanTask(task);
+                          }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            isDark
+                              ? 'bg-primary-900/30 text-primary-300 border-primary-700 hover:bg-primary-900/50'
+                              : 'bg-primary-50 text-primary-700 border-primary-300 hover:bg-primary-100'
+                          }`}
+                          title="Preview / Print Challan"
+                        >
+                          <FiPrinter className="w-3.5 h-3.5" />
+                          <span>Challan</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleChecked(task);
+                        }}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                          isDark
+                            ? 'bg-gray-700 text-gray-200 border-gray-600 hover:border-emerald-500 hover:text-emerald-300'
+                            : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title="Admin Check: Mark as Checked and move to Checked Tasks"
+                      >
+                        <span className="w-3.5 h-3.5 rounded border border-gray-400 flex items-center justify-center text-[10px] font-bold">
+                          ✓
+                        </span>
+                        <span>Mark Checked</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCompletedTask(task);
+                        }}
+                        disabled={actionLoadingId === task._id}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                          isDark
+                            ? 'bg-red-900/30 text-red-300 border-red-800 hover:bg-red-900/50'
+                            : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                        }`}
+                        title="Delete Completed Task"
+                      >
+                        <FiTrash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -640,6 +854,89 @@ const CompletedTasks = () => {
           </div>
         </div>
       )}
+      {/* Billable Amount Modal */}
+      {billableModal.isOpen && billableModal.task && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-2xl max-w-md w-full p-6 shadow-2xl`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Enter Challan Amount
+              </h3>
+              <button
+                type="button"
+                onClick={() => !isSubmittingBillable && setBillableModal({ isOpen: false, task: null, amount: '' })}
+                className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Task: <span className="font-semibold">{billableModal.task.title}</span>
+              {billableModal.task.client && (
+                <> — Client: <span className="font-semibold">{billableModal.task.client.name || billableModal.task.client.companyName}</span></>
+              )}
+            </p>
+            <form onSubmit={handleConfirmBillable} className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  autoFocus
+                  value={billableModal.amount}
+                  onChange={(e) => setBillableModal(prev => ({ ...prev, amount: e.target.value }))}
+                  placeholder="Enter challan amount"
+                  disabled={isSubmittingBillable}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white text-gray-900'}`}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isSubmittingBillable}
+                  onClick={() => setBillableModal({ isOpen: false, task: null, amount: '' })}
+                  className={`flex-1 px-4 py-2 border rounded-lg font-medium ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBillable}
+                  className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {isSubmittingBillable ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Generating Challan...</span>
+                    </>
+                  ) : (
+                    <span>Generate Challan</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      <ConfirmationModal
+        isOpen={confirmDialog.isOpen}
+        onClose={() => !isConfirmLoading && setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        isLoading={isConfirmLoading}
+      />
+
+      <ChallanPreviewModal
+        isOpen={!!previewChallanTask}
+        onClose={() => setPreviewChallanTask(null)}
+        task={previewChallanTask}
+      />
     </div>
   );
 };

@@ -16,7 +16,7 @@ const AdminRoute = ({ children }) => {
         return <Navigate to="/taskflow/login" replace />;
     }
 
-    if (user?.role !== 'admin') {
+    if (!['admin', 'master', 'superadmin', 'super_admin'].includes(user?.role)) {
         return <Navigate to="/taskflow/dashboard" replace />;
     }
 
